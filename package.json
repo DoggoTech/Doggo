@@ -1,0 +1,30 @@
+{
+  "name": "doggo-e2e",
+  "version": "1.0.0",
+  "description": "",
+  "directories": {
+    "lib": "lib",
+    "test": "test"
+  },
+  "scripts": {
+    "build:web": "flutter build web --release",
+    "test:e2e": "playwright test",
+    "test:full": "npm run build:web && playwright test"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/DoggoTech/Doggo.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/DoggoTech/Doggo/issues"
+  },
+  "homepage": "https://github.com/DoggoTech/Doggo#readme",
+  "devDependencies": {
+    "@playwright/test": "^1.64.1",
+    "http-server": "^14.1.1"
+  },
+  "private": true
+}
