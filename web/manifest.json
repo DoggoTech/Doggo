@@ -1,11 +1,11 @@
 {
-    "name": "doggo",
-    "short_name": "doggo",
+    "name": "Doggo",
+    "short_name": "Doggo",
     "start_url": ".",
     "display": "standalone",
-    "background_color": "#0175C2",
-    "theme_color": "#0175C2",
-    "description": "A new Flutter project.",
+    "background_color": "#FDF3E7",
+    "theme_color": "#FF8A38",
+    "description": "Encuentra cuidadores de perros cerca de ti.",
     "orientation": "portrait-primary",
     "prefer_related_applications": false,
     "icons": [
