@@ -34,13 +34,29 @@ class MapFilters {
   bool get isEmpty => service == null && advancedCount == 0;
 
   MapFilters withService(ServiceType? v) => MapFilters(
-      service: v, maxPrice: maxPrice, maxDistanceKm: maxDistanceKm, minRating: minRating);
+    service: v,
+    maxPrice: maxPrice,
+    maxDistanceKm: maxDistanceKm,
+    minRating: minRating,
+  );
   MapFilters withMaxPrice(int? v) => MapFilters(
-      service: service, maxPrice: v, maxDistanceKm: maxDistanceKm, minRating: minRating);
+    service: service,
+    maxPrice: v,
+    maxDistanceKm: maxDistanceKm,
+    minRating: minRating,
+  );
   MapFilters withMaxDistanceKm(int? v) => MapFilters(
-      service: service, maxPrice: maxPrice, maxDistanceKm: v, minRating: minRating);
+    service: service,
+    maxPrice: maxPrice,
+    maxDistanceKm: v,
+    minRating: minRating,
+  );
   MapFilters withMinRating(double? v) => MapFilters(
-      service: service, maxPrice: maxPrice, maxDistanceKm: maxDistanceKm, minRating: v);
+    service: service,
+    maxPrice: maxPrice,
+    maxDistanceKm: maxDistanceKm,
+    minRating: v,
+  );
 }
 
 class MapFiltersNotifier extends Notifier<MapFilters> {
@@ -54,8 +70,9 @@ class MapFiltersNotifier extends Notifier<MapFilters> {
   void clear() => state = const MapFilters();
 }
 
-final mapFiltersProvider =
-    NotifierProvider<MapFiltersNotifier, MapFilters>(MapFiltersNotifier.new);
+final mapFiltersProvider = NotifierProvider<MapFiltersNotifier, MapFilters>(
+  MapFiltersNotifier.new,
+);
 
 class LocationState {
   const LocationState({this.point, this.tracking = false});
@@ -98,22 +115,24 @@ class LocationNotifier extends Notifier<LocationState> {
       );
       await _subscription?.cancel();
       state = LocationState(point: _toLatLng(first), tracking: true);
-      _subscription = Geolocator.getPositionStream(
-        locationSettings: const LocationSettings(
-          accuracy: LocationAccuracy.high,
-          distanceFilter: 5,
-        ),
-      ).listen(
-        (p) => state = LocationState(point: _toLatLng(p), tracking: true),
-        // Los errores pasajeros (señal débil, un timeout) son normales en un
-        // celular en movimiento: se conserva la última posición y se sigue
-        // escuchando. Solo se apaga si ya no hay permiso o servicio.
-        onError: (Object e) {
-          if (e is PermissionDeniedException || e is LocationServiceDisabledException) {
-            stop();
-          }
-        },
-      );
+      _subscription =
+          Geolocator.getPositionStream(
+            locationSettings: const LocationSettings(
+              accuracy: LocationAccuracy.high,
+              distanceFilter: 5,
+            ),
+          ).listen(
+            (p) => state = LocationState(point: _toLatLng(p), tracking: true),
+            // Los errores pasajeros (señal débil, un timeout) son normales en un
+            // celular en movimiento: se conserva la última posición y se sigue
+            // escuchando. Solo se apaga si ya no hay permiso o servicio.
+            onError: (Object e) {
+              if (e is PermissionDeniedException ||
+                  e is LocationServiceDisabledException) {
+                stop();
+              }
+            },
+          );
       return true;
     } catch (_) {
       return false;
@@ -131,11 +150,14 @@ class LocationNotifier extends Notifier<LocationState> {
 }
 
 final locationProvider =
-    NotifierProvider.autoDispose<LocationNotifier, LocationState>(LocationNotifier.new);
+    NotifierProvider.autoDispose<LocationNotifier, LocationState>(
+      LocationNotifier.new,
+    );
 
 /// Posición del usuario (o `null`), para quien solo necesita el punto.
-final userLocationProvider =
-    Provider.autoDispose<LatLng?>((ref) => ref.watch(locationProvider).point);
+final userLocationProvider = Provider.autoDispose<LatLng?>(
+  (ref) => ref.watch(locationProvider).point,
+);
 
 /// ¿El mapa acompaña al usuario mientras se mueve? Se apaga al arrastrar el mapa.
 class FollowingNotifier extends Notifier<bool> {
@@ -145,8 +167,9 @@ class FollowingNotifier extends Notifier<bool> {
   void set(bool value) => state = value;
 }
 
-final followingProvider =
-    NotifierProvider.autoDispose<FollowingNotifier, bool>(FollowingNotifier.new);
+final followingProvider = NotifierProvider.autoDispose<FollowingNotifier, bool>(
+  FollowingNotifier.new,
+);
 
 class SelectedSitterNotifier extends Notifier<String?> {
   @override
@@ -156,7 +179,9 @@ class SelectedSitterNotifier extends Notifier<String?> {
 }
 
 final selectedSitterIdProvider =
-    NotifierProvider<SelectedSitterNotifier, String?>(SelectedSitterNotifier.new);
+    NotifierProvider<SelectedSitterNotifier, String?>(
+      SelectedSitterNotifier.new,
+    );
 
 final sittersProvider = FutureProvider<List<SitterSummary>>(
   (ref) => ref.watch(repositoryProvider).fetchSitters(),
@@ -169,25 +194,29 @@ class SitterView {
 }
 
 /// Cuidadores que pasan los filtros, del más cercano al más lejano.
-final visibleSittersProvider = Provider.autoDispose<AsyncValue<List<SitterView>>>((ref) {
-  final filters = ref.watch(mapFiltersProvider);
-  final origin = ref.watch(userLocationProvider) ?? bogotaCenter;
-  return ref.watch(sittersProvider).whenData((all) {
-    final views = <SitterView>[];
-    for (final s in all) {
-      if (filters.service != null && !s.offers(filters.service!)) continue;
-      if (filters.maxPrice != null && s.pinPrice(filters.service) > filters.maxPrice!) {
-        continue;
-      }
-      if (filters.minRating != null &&
-          (s.ratingAvg == null || s.ratingAvg! < filters.minRating!)) {
-        continue;
-      }
-      final km = _distance.as(LengthUnit.Kilometer, origin, s.location);
-      if (filters.maxDistanceKm != null && km > filters.maxDistanceKm!) continue;
-      views.add(SitterView(s, km));
-    }
-    views.sort((a, b) => a.distanceKm.compareTo(b.distanceKm));
-    return views;
-  });
-});
+final visibleSittersProvider =
+    Provider.autoDispose<AsyncValue<List<SitterView>>>((ref) {
+      final filters = ref.watch(mapFiltersProvider);
+      final origin = ref.watch(userLocationProvider) ?? bogotaCenter;
+      return ref.watch(sittersProvider).whenData((all) {
+        final views = <SitterView>[];
+        for (final s in all) {
+          if (filters.service != null && !s.offers(filters.service!)) continue;
+          if (filters.maxPrice != null &&
+              s.pinPrice(filters.service) > filters.maxPrice!) {
+            continue;
+          }
+          if (filters.minRating != null &&
+              (s.ratingAvg == null || s.ratingAvg! < filters.minRating!)) {
+            continue;
+          }
+          final km = _distance.as(LengthUnit.Kilometer, origin, s.location);
+          if (filters.maxDistanceKm != null && km > filters.maxDistanceKm!) {
+            continue;
+          }
+          views.add(SitterView(s, km));
+        }
+        views.sort((a, b) => a.distanceKm.compareTo(b.distanceKm));
+        return views;
+      });
+    });

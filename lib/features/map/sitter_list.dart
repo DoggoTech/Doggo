@@ -51,9 +51,8 @@ class RatingText extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final style = Theme.of(context).textTheme.bodySmall?.copyWith(
-          fontWeight: FontWeight.w700,
-        );
+    final style = Theme.of(context).textTheme.bodySmall
+        ?.copyWith(fontWeight: FontWeight.w700);
     if (sitter.ratingAvg == null) {
       return Text('Nuevo', style: style?.copyWith(color: AppColors.success));
     }
@@ -62,7 +61,10 @@ class RatingText extends StatelessWidget {
       children: [
         const Icon(Icons.star_rounded, size: 16, color: AppColors.primary),
         const SizedBox(width: 2),
-        Text('${formatRating(sitter.ratingAvg!)} (${sitter.ratingCount})', style: style),
+        Text(
+          '${formatRating(sitter.ratingAvg!)} (${sitter.ratingCount})',
+          style: style,
+        ),
       ],
     );
   }
@@ -75,9 +77,9 @@ class VerifiedBadge extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Semantics(
-        label: 'Verificado',
-        child: Icon(Icons.verified_rounded, size: size, color: AppColors.success),
-      );
+    label: 'Verificado',
+    child: Icon(Icons.verified_rounded, size: size, color: AppColors.success),
+  );
 }
 
 /// Lista de cuidadores con encabezado, estados de carga/vacío/error.
@@ -85,12 +87,13 @@ class VerifiedBadge extends StatelessWidget {
 class SitterList extends ConsumerWidget {
   const SitterList({
     super.key,
-    required this.onFocus,
+    required this.onOpen,
     this.controller,
     this.showHandle = false,
   });
 
-  final void Function(SitterSummary) onFocus;
+  /// Abre el perfil del cuidador tocado.
+  final void Function(SitterSummary) onOpen;
   final ScrollController? controller;
   final bool showHandle;
 
@@ -103,44 +106,46 @@ class SitterList extends ConsumerWidget {
     final theme = Theme.of(context);
 
     Widget header(int? count) => Padding(
-          padding: const EdgeInsets.fromLTRB(20, 4, 20, 8),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              if (showHandle)
-                Center(
-                  child: Container(
-                    width: 44,
-                    height: 5,
-                    margin: const EdgeInsets.only(bottom: 12),
-                    decoration: BoxDecoration(
-                      color: const Color(0x332B1D12),
-                      borderRadius: BorderRadius.circular(3),
-                    ),
-                  ),
-                ),
-              Semantics(
-                header: true,
-                child: Text(
-                  count == null
-                      ? 'Cuidadores cerca'
-                      : count == 1
-                          ? '1 cuidador cerca'
-                          : '$count cuidadores cerca',
-                  style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w900),
+      padding: const EdgeInsets.fromLTRB(20, 4, 20, 8),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          if (showHandle)
+            Center(
+              child: Container(
+                width: 44,
+                height: 5,
+                margin: const EdgeInsets.only(bottom: 12),
+                decoration: BoxDecoration(
+                  color: const Color(0x332B1D12),
+                  borderRadius: BorderRadius.circular(3),
                 ),
               ),
-              Text(
-                location.tracking
-                    ? 'Distancia desde tu ubicación (en vivo)'
-                    : location.point != null
-                        ? 'Distancia desde tu ubicación'
-                        : 'Distancia desde el centro de Bogotá',
-                style: theme.textTheme.bodySmall?.copyWith(color: AppColors.muted),
+            ),
+          Semantics(
+            header: true,
+            child: Text(
+              count == null
+                  ? 'Cuidadores cerca'
+                  : count == 1
+                  ? '1 cuidador cerca'
+                  : '$count cuidadores cerca',
+              style: theme.textTheme.titleLarge?.copyWith(
+                fontWeight: FontWeight.w900,
               ),
-            ],
+            ),
           ),
-        );
+          Text(
+            location.tracking
+                ? 'Distancia desde tu ubicación (en vivo)'
+                : location.point != null
+                ? 'Distancia desde tu ubicación'
+                : 'Distancia desde el centro de Bogotá',
+            style: theme.textTheme.bodySmall?.copyWith(color: AppColors.muted),
+          ),
+        ],
+      ),
+    );
 
     return visible.when(
       loading: () => ListView(
@@ -182,7 +187,11 @@ class SitterList extends ConsumerWidget {
                 padding: const EdgeInsets.all(32),
                 child: Column(
                   children: [
-                    const Icon(Icons.search_off_rounded, size: 48, color: AppColors.muted),
+                    const Icon(
+                      Icons.search_off_rounded,
+                      size: 48,
+                      color: AppColors.muted,
+                    ),
                     const SizedBox(height: 12),
                     Text(
                       'No hay cuidadores con esos filtros.',
@@ -192,7 +201,8 @@ class SitterList extends ConsumerWidget {
                     if (!filters.isEmpty) ...[
                       const SizedBox(height: 16),
                       FilledButton(
-                        onPressed: () => ref.read(mapFiltersProvider.notifier).clear(),
+                        onPressed: () =>
+                            ref.read(mapFiltersProvider.notifier).clear(),
                         child: const Text('Limpiar filtros'),
                       ),
                     ],
@@ -212,7 +222,7 @@ class SitterList extends ConsumerWidget {
               view: v,
               service: filters.service,
               selected: v.sitter.id == selectedId,
-              onTap: () => onFocus(v.sitter),
+              onTap: () => onOpen(v.sitter),
             );
           },
         );
@@ -244,7 +254,8 @@ class _SitterTile extends StatelessWidget {
       button: true,
       selected: selected,
       onTap: onTap,
-      label: '${s.name}, ${s.neighborhood}, a ${formatKm(view.distanceKm)}, '
+      label:
+          '${s.name}, ${s.neighborhood}, a ${formatKm(view.distanceKm)}, '
           '${formatCop(price)} ${shown.unit}',
       excludeSemantics: true,
       child: InkWell(
@@ -253,7 +264,9 @@ class _SitterTile extends StatelessWidget {
           margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
           padding: const EdgeInsets.all(12),
           decoration: BoxDecoration(
-            color: selected ? AppColors.primary.withValues(alpha: 0.12) : Colors.white,
+            color: selected
+                ? AppColors.primary.withValues(alpha: 0.12)
+                : Colors.white,
             borderRadius: BorderRadius.circular(20),
             border: Border.all(
               color: selected ? AppColors.primary : Colors.transparent,
@@ -274,8 +287,9 @@ class _SitterTile extends StatelessWidget {
                           child: Text(
                             s.name,
                             overflow: TextOverflow.ellipsis,
-                            style: theme.textTheme.titleMedium
-                                ?.copyWith(fontWeight: FontWeight.w800),
+                            style: theme.textTheme.titleMedium?.copyWith(
+                              fontWeight: FontWeight.w800,
+                            ),
                           ),
                         ),
                         if (s.verified) ...[
@@ -288,7 +302,9 @@ class _SitterTile extends StatelessWidget {
                     RatingText(s),
                     Text(
                       '${s.neighborhood} · a ${formatKm(view.distanceKm)}',
-                      style: theme.textTheme.bodySmall?.copyWith(color: AppColors.muted),
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: AppColors.muted,
+                      ),
                     ),
                   ],
                 ),
@@ -305,7 +321,9 @@ class _SitterTile extends StatelessWidget {
                   ),
                   Text(
                     shown.unit,
-                    style: theme.textTheme.bodySmall?.copyWith(color: AppColors.muted),
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: AppColors.muted,
+                    ),
                   ),
                 ],
               ),

@@ -114,3 +114,22 @@ export async function selectService(page: Page, name: string) {
   }
   await chip.click();
 }
+
+/** Desde el mapa (como dueño demo), abre el perfil de un cuidador por su pin. */
+export async function openSitterProfile(page: Page, name: string) {
+  await enterAsOwner(page);
+  await pin(page, name).dispatchEvent('click');
+  await page.getByRole('button', { name: 'Ver perfil' }).click();
+  await expect(page.getByText('Perfil del cuidador')).toBeVisible();
+}
+
+/** Navega dentro de la app sin recargar (se conserva la sesión en memoria). */
+export async function goToHash(page: Page, route: string) {
+  await page.evaluate((r) => (window.location.hash = r), route);
+}
+
+/**
+ * Un texto que se ve en pantalla. Flutter lo expone como texto o como etiqueta
+ * (aria-label) del grupo que lo contiene según la estructura; da igual cuál.
+ */
+export const seen = (page: Page, t: string | RegExp) => page.getByText(t).or(page.getByLabel(t)).first();

@@ -113,15 +113,17 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
                             Text(
                               s.title,
                               textAlign: TextAlign.center,
-                              style: textTheme.headlineSmall
-                                  ?.copyWith(fontWeight: FontWeight.w900),
+                              style: textTheme.headlineSmall?.copyWith(
+                                fontWeight: FontWeight.w900,
+                              ),
                             ),
                             const SizedBox(height: 12),
                             Text(
                               s.body,
                               textAlign: TextAlign.center,
-                              style: textTheme.bodyLarge
-                                  ?.copyWith(color: AppColors.muted),
+                              style: textTheme.bodyLarge?.copyWith(
+                                color: AppColors.muted,
+                              ),
                             ),
                           ],
                         );

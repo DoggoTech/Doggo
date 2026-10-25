@@ -43,7 +43,9 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     final p = widget.profile;
     final repo = ref.watch(repositoryProvider);
     final theme = Theme.of(context);
-    final otherRole = p.role == UserRole.owner ? UserRole.sitter : UserRole.owner;
+    final otherRole = p.role == UserRole.owner
+        ? UserRole.sitter
+        : UserRole.owner;
     return ListView(
       padding: const EdgeInsets.all(24),
       children: [
@@ -64,8 +66,9 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
         Text(
           p.fullName,
           textAlign: TextAlign.center,
-          style: theme.textTheme.headlineSmall
-              ?.copyWith(fontWeight: FontWeight.w900),
+          style: theme.textTheme.headlineSmall?.copyWith(
+            fontWeight: FontWeight.w900,
+          ),
         ),
         Text(
           p.email,
@@ -82,8 +85,9 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
             ),
             child: Text(
               'Rol: ${p.role.label}',
-              style: theme.textTheme.labelLarge
-                  ?.copyWith(fontWeight: FontWeight.w800),
+              style: theme.textTheme.labelLarge?.copyWith(
+                fontWeight: FontWeight.w800,
+              ),
             ),
           ),
         ),
@@ -107,9 +111,13 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                 ),
                 if (_error != null) ...[
                   const SizedBox(height: 8),
-                  Text(
-                    _error!,
-                    style: TextStyle(color: theme.colorScheme.error),
+                  Semantics(
+                    container: true,
+                    liveRegion: true,
+                    child: Text(
+                      _error!,
+                      style: TextStyle(color: theme.colorScheme.error),
+                    ),
                   ),
                 ],
               ],
@@ -128,8 +136,10 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                Text('Modo demo: cambiar de rol',
-                    style: theme.textTheme.titleMedium),
+                Text(
+                  'Modo demo: cambiar de rol',
+                  style: theme.textTheme.titleMedium,
+                ),
                 const SizedBox(height: 12),
                 Wrap(
                   spacing: 8,

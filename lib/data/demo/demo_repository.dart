@@ -2,9 +2,13 @@ import 'dart:async';
 
 import 'package:latlong2/latlong.dart';
 
+import '../models/booking.dart';
+import '../models/dog.dart';
 import '../models/profile.dart';
+import '../models/review.dart';
 import '../models/service_type.dart';
 import '../models/sitter_summary.dart';
+import '../pricing.dart';
 import '../repositories/repository.dart';
 
 const demoPassword = 'doggo123';
@@ -70,6 +74,11 @@ class DemoRepository implements Repository {
   };
 
   final _users = <String, _DemoUser>{};
+  final _dogs = <Dog>[
+    const Dog(id: 'demo-dog-rocky', ownerId: 'demo-owner', name: 'Rocky', breed: 'Labrador', size: DogSize.large),
+    const Dog(id: 'demo-dog-luna', ownerId: 'demo-owner', name: 'Luna', breed: 'Beagle', size: DogSize.medium),
+  ];
+  final _bookings = <Booking>[];
   final _controller = StreamController<Profile?>.broadcast();
   Profile? _current;
   var _nextId = 1;
@@ -185,8 +194,109 @@ class DemoRepository implements Repository {
     return List.unmodifiable(_demoSitters);
   }
 
-  /// Se conecta con las reservas en la fase 5.
-  bool _hasActiveBookings(Profile profile) => false;
+  @override
+  Future<SitterSummary?> fetchSitter(String id) async {
+    await _latency();
+    for (final s in _demoSitters) {
+      if (s.id == id) return s;
+    }
+    return null;
+  }
+
+  @override
+  Future<List<Review>> fetchReviews(String sitterId) async {
+    await _latency();
+    final list = _demoReviews.where((r) => r.sitterId == sitterId).toList()
+      ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
+    return list;
+  }
+
+  @override
+  Future<List<Dog>> fetchMyDogs() async {
+    await _latency();
+    final me = _current;
+    if (me == null) return const [];
+    return _dogs.where((d) => d.ownerId == me.id).toList();
+  }
+
+  @override
+  Future<Dog> addDog({required String name, required DogSize size, String? breed}) async {
+    await _latency();
+    final me = _current;
+    if (me == null || me.role != UserRole.owner) {
+      throw const ValidationFailure('Solo los dueños pueden registrar perros.');
+    }
+    final trimmed = name.trim();
+    if (trimmed.isEmpty || trimmed.length > 40) {
+      throw const ValidationFailure('Escribe el nombre de tu perro (máx. 40 caracteres).');
+    }
+    final dog = Dog(
+      id: 'demo-dog-${_nextId++}',
+      ownerId: me.id,
+      name: trimmed,
+      size: size,
+      breed: (breed == null || breed.trim().isEmpty) ? null : breed.trim(),
+    );
+    _dogs.add(dog);
+    return dog;
+  }
+
+  @override
+  Future<Booking> createBooking({
+    required String sitterId,
+    required String dogId,
+    required ServiceType service,
+    required DateTime startAt,
+    required DateTime endAt,
+  }) async {
+    await _latency();
+    final me = _current;
+    if (me == null || me.role != UserRole.owner || me.status != UserStatus.approved) {
+      throw const ValidationFailure('Tu cuenta no puede hacer reservas.');
+    }
+    SitterSummary? sitter;
+    for (final s in _demoSitters) {
+      if (s.id == sitterId) sitter = s;
+    }
+    if (sitter == null || sitter.id == me.id) {
+      throw const ValidationFailure('Este cuidador no está disponible.');
+    }
+    Dog? dog;
+    for (final d in _dogs) {
+      if (d.id == dogId && d.ownerId == me.id) dog = d;
+    }
+    if (dog == null) throw const ValidationFailure('Elige uno de tus perros.');
+    final price = sitter.services[service];
+    if (price == null) {
+      throw const ValidationFailure('Este cuidador no ofrece ese servicio.');
+    }
+    if (!startAt.isAfter(DateTime.now())) {
+      throw const ValidationFailure('Elige una fecha y hora en el futuro.');
+    }
+    if (!endAt.isAfter(startAt)) {
+      throw const ValidationFailure('La hora de fin debe ser posterior a la de inicio.');
+    }
+    final booking = Booking(
+      id: 'demo-booking-${_nextId++}',
+      ownerId: me.id,
+      sitterId: sitter.id,
+      sitterName: sitter.name,
+      dogId: dog.id,
+      dogName: dog.name,
+      service: service,
+      startAt: startAt,
+      endAt: endAt,
+      totalCop: bookingTotal(service, price, startAt, endAt),
+      status: BookingStatus.pending,
+      createdAt: DateTime.now(),
+    );
+    _bookings.add(booking);
+    return booking;
+  }
+
+  bool _hasActiveBookings(Profile profile) => _bookings.any(
+        (b) => (b.ownerId == profile.id || b.sitterId == profile.id) && b.status.isActive,
+      );
 
   Future<void> _latency() =>
       Future<void>.delayed(const Duration(milliseconds: 250));
@@ -200,10 +310,22 @@ class _DemoUser {
   _DemoUser withProfile(Profile p) => _DemoUser(p, password);
 }
 
-/// Los 10 cuidadores aprobados de `supabase/seed.sql` (Bogotá), con la
+/// La cuenta de prueba de cuidador y los 10 aprobados de `supabase/seed.sql` (Bogotá), con la
 /// ubicación aproximada ya desplazada. Los dos del seed en revisión no están
 /// aquí a propósito: no aparecen en el mapa hasta que un admin los apruebe.
 const _demoSitters = <SitterSummary>[
+  // La cuenta de prueba cuidador@doggo.app (ver supabase/assign_roles.sql):
+  // recibe en vivo las reservas que se hacen en el modo demo.
+  SitterSummary(
+    id: 'demo-sitter',
+    name: 'Carlos Cuidador',
+    neighborhood: 'Chapinero',
+    bio: 'Cuidador de prueba: paseos y guardería en Chapinero.',
+    location: LatLng(4.65480, -74.05935),
+    radiusKm: 5,
+    verified: true,
+    services: {ServiceType.walk: 26000, ServiceType.daycare: 62000, ServiceType.homeVisit: 34000},
+  ),
   SitterSummary(
     id: 'a1000000-0000-4000-8000-000000000001',
     name: 'Laura Gómez',
@@ -327,4 +449,26 @@ const _demoSitters = <SitterSummary>[
     avatarUrl: 'https://i.pravatar.cc/300?img=68',
     services: {ServiceType.walk: 21000, ServiceType.daycare: 50000},
   ),
+];
+
+final _now = DateTime.now();
+
+/// Algunas reseñas por cuidador (las cifras de `ratingCount` incluyen más).
+final _demoReviews = <Review>[
+  Review(id: 'r1', sitterId: 'a1000000-0000-4000-8000-000000000001', authorName: 'Marcela D.', rating: 5,
+      comment: 'Rocky volvió feliz y cansado. Muy puntual y cariñosa.', createdAt: _now.subtract(const Duration(days: 3))),
+  Review(id: 'r2', sitterId: 'a1000000-0000-4000-8000-000000000001', authorName: 'Juan P.', rating: 5,
+      comment: 'Nos mandaba fotos durante todo el paseo.', createdAt: _now.subtract(const Duration(days: 12))),
+  Review(id: 'r3', sitterId: 'a1000000-0000-4000-8000-000000000001', authorName: 'Sofía R.', rating: 4,
+      comment: 'Muy buena, llegó 10 minutos tarde.', createdAt: _now.subtract(const Duration(days: 30))),
+  Review(id: 'r4', sitterId: 'a1000000-0000-4000-8000-000000000002', authorName: 'Marcela D.', rating: 5,
+      comment: 'Excelente trato y mucha comunicación.', createdAt: _now.subtract(const Duration(days: 5))),
+  Review(id: 'r5', sitterId: 'a1000000-0000-4000-8000-000000000002', authorName: 'Andrea L.', rating: 4,
+      comment: 'El patio es enorme, a mi perro le encantó.', createdAt: _now.subtract(const Duration(days: 20))),
+  Review(id: 'r6', sitterId: 'a1000000-0000-4000-8000-000000000003', authorName: 'Marcela D.', rating: 4,
+      comment: 'Muy profesional, repetiremos.', createdAt: _now.subtract(const Duration(days: 8))),
+  Review(id: 'r7', sitterId: 'a1000000-0000-4000-8000-000000000006', authorName: 'Camilo T.', rating: 4,
+      comment: 'Todo bien, un poco de retraso al llegar.', createdAt: _now.subtract(const Duration(days: 15))),
+  Review(id: 'r8', sitterId: 'a1000000-0000-4000-8000-000000000007', authorName: 'Marcela D.', rating: 5,
+      comment: 'Dejó a Rocky precioso. Súper recomendada.', createdAt: _now.subtract(const Duration(days: 2))),
 ];

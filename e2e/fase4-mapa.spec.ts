@@ -4,7 +4,7 @@ import { enterAsOwner, goToLogin, login, openApp, pin, pins, selectService, tab,
 test.describe('mapa del dueño', () => {
   test('muestra un pin por cuidador aprobado, con el precio del paseo', async ({ page }) => {
     await enterAsOwner(page);
-    await expect(pins(page)).toHaveCount(10);
+    await expect(pins(page)).toHaveCount(11);
     await expect(pin(page, 'Laura Gómez')).toHaveAccessibleName('Cuidador Laura Gómez, $25.000');
     // Isabela no hace paseos: su pin muestra el servicio más barato que ofrece.
     await expect(pin(page, 'Isabela Mejía')).toHaveAccessibleName('Cuidador Isabela Mejía, $32.000');
@@ -38,7 +38,7 @@ test.describe('mapa del dueño', () => {
     await tab(page, 'Perfil').click();
     await page.getByRole('button', { name: 'Demo: Dueño' }).click();
     await expect(pins(page).first()).toBeAttached({ timeout: 15_000 });
-    await expect(pins(page)).toHaveCount(10);
+    await expect(pins(page)).toHaveCount(11);
     await expect(pin(page, 'Sitter Nuevo')).toHaveCount(0);
   });
 
@@ -64,22 +64,22 @@ test.describe('filtros', () => {
   test('"Todos" y volver a pulsar el chip quitan el filtro', async ({ page }) => {
     await enterAsOwner(page);
     await selectService(page, 'Paseo');
-    await expect(pins(page)).toHaveCount(9); // Isabela no hace paseos
+    await expect(pins(page)).toHaveCount(10); // todos menos Isabela, que no hace paseos
     await page.getByRole('button', { name: 'Todos' }).click();
-    await expect(pins(page)).toHaveCount(10);
+    await expect(pins(page)).toHaveCount(11);
     await selectService(page, 'Entrenamiento básico');
     await expect(pins(page)).toHaveCount(2);
     await selectService(page, 'Entrenamiento básico');
-    await expect(pins(page)).toHaveCount(10);
+    await expect(pins(page)).toHaveCount(11);
   });
 
   test('precio máximo', async ({ page }) => {
     await enterAsOwner(page);
     await page.getByRole('button', { name: /^Filtros/ }).click();
     await page.getByRole('button', { name: 'Hasta $30.000' }).click();
-    await expect(page.getByRole('button', { name: 'Ver 8 cuidadores' })).toBeVisible();
-    await page.getByRole('button', { name: 'Ver 8 cuidadores' }).click();
-    await expect(pins(page)).toHaveCount(8);
+    await expect(page.getByRole('button', { name: 'Ver 9 cuidadores' })).toBeVisible();
+    await page.getByRole('button', { name: 'Ver 9 cuidadores' }).click();
+    await expect(pins(page)).toHaveCount(9);
     await expect(page.getByRole('button', { name: 'Filtros (1)' })).toBeVisible();
     await expect(pin(page, 'Daniela Moreno')).toHaveCount(0); // $35.000
   });
@@ -115,7 +115,7 @@ test.describe('filtros', () => {
     await expect(pins(page)).toHaveCount(0);
     await expect(page.getByRole('group', { name: 'No hay cuidadores con esos filtros.' })).toBeVisible();
     await page.getByRole('button', { name: 'Limpiar filtros' }).click();
-    await expect(pins(page)).toHaveCount(10);
+    await expect(pins(page)).toHaveCount(11);
   });
 });
 
@@ -126,11 +126,11 @@ test.describe('lista y selección', () => {
     await expect(tiles(page).first()).toHaveAccessibleName(/^Julián Castro, Teusaquillo, a 1,\d km/);
   });
 
-  test('tocar un cuidador de la lista lo selecciona y muestra su tarjeta', async ({ page }) => {
+  test('tocar un cuidador de la lista abre su perfil', async ({ page }) => {
     await enterAsOwner(page);
     await tiles(page).first().click();
-    await expect(page.getByRole('button', { name: 'Cerrar' })).toBeVisible();
-    await expect(tiles(page).first()).toHaveAttribute('aria-selected', /true|/).catch(() => {});
+    await expect(page.getByText('Perfil del cuidador')).toBeVisible();
+    await expect(page.getByText('Julián Castro').first()).toBeVisible();
   });
 
   test('tocar un pin selecciona al cuidador y muestra su tarjeta', async ({ page }) => {
@@ -248,7 +248,7 @@ test.describe('Mi ubicación', () => {
       timeout: 15_000,
     });
     await expect(page.getByText('Distancia desde el centro de Bogotá')).toBeVisible();
-    await expect(pins(page)).toHaveCount(10);
+    await expect(pins(page)).toHaveCount(11);
   });
 });
 
@@ -256,7 +256,7 @@ test.describe('adaptación a la pantalla', () => {
   test('celular: lista en hoja inferior; escritorio: panel lateral', async ({ page }, testInfo) => {
     await enterAsOwner(page);
     const vp = page.viewportSize()!;
-    const box = await page.getByText('10 cuidadores cerca').boundingBox();
+    const box = await page.getByText('11 cuidadores cerca').boundingBox();
     expect(box).not.toBeNull();
     if (testInfo.project.name === 'mobile') {
       expect(box!.y).toBeGreaterThan(vp.height * 0.6); // abajo
