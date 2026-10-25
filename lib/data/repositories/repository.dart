@@ -1,4 +1,5 @@
 import '../models/profile.dart';
+import '../models/sitter_summary.dart';
 
 /// Error de autenticación con un mensaje listo para mostrar al usuario.
 class AuthFailure implements Exception {
@@ -40,4 +41,8 @@ abstract class Repository {
 
   /// Cambia entre dueño y cuidador. Falla si hay reservas activas.
   Future<Profile> switchRole(UserRole role);
+
+  /// Cuidadores visibles en el mapa: solo `approved` (ni en revisión ni
+  /// suspendidos), con ubicación aproximada y al menos un servicio activo.
+  Future<List<SitterSummary>> fetchSitters();
 }
