@@ -108,5 +108,4 @@ Detalle en [`docs/decisiones-de-arquitectura.md`](docs/decisiones-de-arquitectur
 ## Pendientes
 
 1. **Conectar Supabase** (`SupabaseRepository`): cuentas reales y reservas en tiempo real entre dispositivos.
-2. **Pulido:** agrupar pines superpuestos en el mapa, animaciones y estados vacíos.
-3. **Después del MVP:** beneficios para cuidadores con buena calificación.
+2. **Después del MVP:** beneficios para cuidadores con buena calificación.

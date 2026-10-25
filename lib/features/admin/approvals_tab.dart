@@ -10,6 +10,7 @@ import '../../data/repositories/repository.dart';
 import '../map/sitter_list.dart';
 import 'admin_providers.dart';
 import 'admin_widgets.dart';
+import '../../shared/widgets/error_state.dart';
 
 /// Cuidadores en revisión: aprobar (le da la insignia "Verificado") o rechazar.
 class ApprovalsTab extends ConsumerWidget {
@@ -21,7 +22,10 @@ class ApprovalsTab extends ConsumerWidget {
         .watch(pendingSittersProvider)
         .when(
           loading: () => const Center(child: CircularProgressIndicator()),
-          error: (e, _) => Center(child: Text('$e')),
+          error: (_, _) => ErrorState(
+            'No pudimos cargar las solicitudes de cuidadores.',
+            onRetry: () => ref.invalidate(pendingSittersProvider),
+          ),
           data: (list) => ListView(
             padding: const EdgeInsets.fromLTRB(20, 20, 20, 32),
             children: [

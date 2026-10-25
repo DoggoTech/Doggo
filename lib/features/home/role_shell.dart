@@ -14,6 +14,7 @@ import '../sitter_dashboard/agenda_tab.dart';
 import '../sitter_dashboard/requests_tab.dart';
 import '../sitter_dashboard/services_tab.dart';
 import '../profile/profile_screen.dart';
+import '../../shared/widgets/appear_in.dart';
 
 /// Ancho desde el cual la navegación pasa de barra inferior a riel lateral.
 const wideBreakpoint = 840.0;
@@ -120,14 +121,18 @@ class _RoleShellState extends State<RoleShell> {
         : tab.builder != null
         ? tab.builder!(context)
         : _ComingSoon(tab: tab);
-    final content = tab.fullBleed
-        ? body
-        : Center(
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 960),
-              child: body,
+    // Cada pestaña entra con un fundido corto al cambiar de una a otra.
+    final content = AppearIn(
+      key: ValueKey('${widget.profile.role.name}/${tab.label}'),
+      child: tab.fullBleed
+          ? body
+          : Center(
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 960),
+                child: body,
+              ),
             ),
-          );
+    );
 
     // Pantallas anchas (escritorio, tablet horizontal): riel lateral.
     // Pantallas angostas (celular): barra inferior.

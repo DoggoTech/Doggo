@@ -11,6 +11,7 @@ class SitterPin extends StatelessWidget {
     required this.price,
     required this.selected,
     required this.onTap,
+    this.excludeFromSemantics = false,
   });
 
   static const width = 88.0;
@@ -21,49 +22,54 @@ class SitterPin extends StatelessWidget {
   final bool selected;
   final VoidCallback onTap;
 
+  /// Dentro de un grupo, el grupo ya describe el pin al lector de pantalla.
+  final bool excludeFromSemantics;
+
   @override
   Widget build(BuildContext context) {
     final color = selected ? AppColors.text : AppColors.primary;
+    final pin = GestureDetector(
+      onTap: onTap,
+      behavior: HitTestBehavior.opaque,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          AnimatedContainer(
+            duration: const Duration(milliseconds: 200),
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+            decoration: BoxDecoration(
+              color: color,
+              borderRadius: BorderRadius.circular(18),
+              border: Border.all(color: Colors.white, width: 2),
+              boxShadow: const [
+                BoxShadow(
+                  color: Color(0x40000000),
+                  blurRadius: 8,
+                  offset: Offset(0, 3),
+                ),
+              ],
+            ),
+            child: Text(
+              formatCop(price),
+              style: const TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.w800,
+                fontSize: 14,
+              ),
+            ),
+          ),
+          CustomPaint(size: const Size(14, 8), painter: _Tip(color)),
+        ],
+      ),
+    );
+    if (excludeFromSemantics) return ExcludeSemantics(child: pin);
     return Semantics(
       button: true,
       selected: selected,
       label: 'Cuidador $name, ${formatCop(price)}',
       onTap: onTap,
       excludeSemantics: true,
-      child: GestureDetector(
-        onTap: onTap,
-        behavior: HitTestBehavior.opaque,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            AnimatedContainer(
-              duration: const Duration(milliseconds: 200),
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
-              decoration: BoxDecoration(
-                color: color,
-                borderRadius: BorderRadius.circular(18),
-                border: Border.all(color: Colors.white, width: 2),
-                boxShadow: const [
-                  BoxShadow(
-                    color: Color(0x40000000),
-                    blurRadius: 8,
-                    offset: Offset(0, 3),
-                  ),
-                ],
-              ),
-              child: Text(
-                formatCop(price),
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontWeight: FontWeight.w800,
-                  fontSize: 14,
-                ),
-              ),
-            ),
-            CustomPaint(size: const Size(14, 8), painter: _Tip(color)),
-          ],
-        ),
-      ),
+      child: pin,
     );
   }
 }

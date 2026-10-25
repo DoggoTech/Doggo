@@ -12,6 +12,8 @@ import '../bookings/bookings_providers.dart';
 import '../safety/report_sheet.dart';
 import 'countdown.dart';
 import 'pending_review_view.dart';
+import '../../shared/widgets/error_state.dart';
+import '../../shared/widgets/appear_in.dart';
 
 /// Solicitudes pendientes del cuidador. Llegan solas (stream) y vencen solas.
 class RequestsTab extends ConsumerWidget {
@@ -43,8 +45,10 @@ class RequestsTab extends ConsumerWidget {
     final bookings = ref.watch(myBookingsProvider);
     return bookings.when(
       loading: () => const Center(child: CircularProgressIndicator()),
-      error: (_, _) =>
-          const Center(child: Text('No pudimos cargar tus solicitudes.')),
+      error: (_, _) => ErrorState(
+        'No pudimos cargar tus solicitudes.',
+        onRetry: () => ref.invalidate(myBookingsProvider),
+      ),
       data: (all) {
         final now = DateTime.now();
         final pending =
@@ -81,7 +85,10 @@ class RequestsTab extends ConsumerWidget {
               const _Empty()
             else
               for (final b in pending)
-                _RequestCard(key: ValueKey(b.id), booking: b),
+                AppearIn(
+                  key: ValueKey(b.id),
+                  child: _RequestCard(booking: b),
+                ),
           ],
         );
       },
@@ -122,7 +129,7 @@ class _Empty extends StatelessWidget {
 }
 
 class _RequestCard extends ConsumerStatefulWidget {
-  const _RequestCard({super.key, required this.booking});
+  const _RequestCard({required this.booking});
 
   final Booking booking;
 
@@ -195,20 +202,7 @@ class _RequestCardState extends ConsumerState<_RequestCard> {
             ),
           ),
           const SizedBox(height: 8),
-          Row(
-            children: [
-              Expanded(child: ResponseCountdown(deadline: b.responseDeadline)),
-              TextButton(
-                onPressed: () => showReportSheet(
-                  context,
-                  userId: b.ownerId,
-                  userName: b.ownerName,
-                  bookingId: b.id,
-                ),
-                child: Text('Reportar a ${b.ownerName.split(' ').first}'),
-              ),
-            ],
-          ),
+          ResponseCountdown(deadline: b.responseDeadline),
           const SizedBox(height: 14),
           Row(
             children: [
@@ -232,6 +226,21 @@ class _RequestCardState extends ConsumerState<_RequestCard> {
                 ),
               ),
             ],
+          ),
+          // Discreto y aparte: el contador y las respuestas son lo principal.
+          Align(
+            alignment: Alignment.centerLeft,
+            child: TextButton.icon(
+              onPressed: () => showReportSheet(
+                context,
+                userId: b.ownerId,
+                userName: b.ownerName,
+                bookingId: b.id,
+              ),
+              style: TextButton.styleFrom(foregroundColor: AppColors.muted),
+              icon: const Icon(Icons.flag_outlined, size: 18),
+              label: Text('Reportar a ${b.ownerName.split(' ').first}'),
+            ),
           ),
         ],
       ),

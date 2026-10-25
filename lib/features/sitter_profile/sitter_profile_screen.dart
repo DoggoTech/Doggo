@@ -13,6 +13,7 @@ import '../booking/booking_sheet.dart';
 import '../map/sitter_list.dart';
 import '../safety/report_sheet.dart';
 import 'sitter_providers.dart';
+import '../../shared/widgets/error_state.dart';
 
 class SitterProfileScreen extends ConsumerWidget {
   const SitterProfileScreen({super.key, required this.sitterId});
@@ -192,7 +193,10 @@ class _ProfileBody extends ConsumerWidget {
                   padding: EdgeInsets.all(16),
                   child: Center(child: CircularProgressIndicator()),
                 ),
-                error: (_, _) => const Text('No pudimos cargar las reseñas.'),
+                error: (_, _) => ErrorState(
+                  'No pudimos cargar las reseñas.',
+                  onRetry: () => ref.invalidate(reviewsProvider(sitter.id)),
+                ),
                 data: (list) => list.isEmpty
                     ? Text(
                         'Aún no tiene reseñas. ¡Sé el primero en reservar!',

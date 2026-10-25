@@ -238,6 +238,21 @@ export async function bookWithCarlos(page: Page) {
   await expect(pins(page).first()).toBeAttached();
 }
 
+/** Desplaza los nodos de accesibilidad desplazables (como un lector de pantalla). */
+async function scrollSemantics(page: Page, step: number) {
+  await page.evaluate((dy) => {
+    for (const el of Array.from(document.querySelectorAll<HTMLElement>('flt-semantics'))) {
+      const style = getComputedStyle(el);
+      const scrolls = /(auto|scroll)/.test(style.overflowY) && el.scrollHeight > el.clientHeight;
+      if (scrolls) {
+        el.scrollTop += dy;
+        el.dispatchEvent(new Event('scroll'));
+      }
+    }
+  }, step);
+  await page.waitForTimeout(150);
+}
+
 /**
  * Desplaza la lista con la rueda hasta que aparezca el elemento (Flutter
  * construye solo lo visible). Alterna el punto donde gira la rueda: si cae
@@ -245,16 +260,23 @@ export async function bookWithCarlos(page: Page) {
  */
 export async function scrollUntil(page: Page, target: Locator, step = 350) {
   const vp = page.viewportSize()!;
+  // El borde izquierdo (margen de la lista) nunca cae sobre un campo.
   const spots = [
     [vp.width / 2, vp.height / 2],
+    [8, vp.height / 2],
     [vp.width / 2, vp.height * 0.25],
+    [8, vp.height * 0.25],
     [vp.width / 2, vp.height * 0.75],
   ];
-  for (let i = 0; i < 18 && (await target.count()) === 0; i++) {
+  for (let i = 0; i < 24 && (await target.count()) === 0; i++) {
     const [x, y] = spots[i % spots.length];
     await page.mouse.move(x, y);
     await page.mouse.wheel(0, step);
     await page.waitForTimeout(150);
+    // En modo celular, justo después de tocar una pestaña, Flutter a veces
+    // ignora la rueda del todo. Entonces se desplaza como un lector de
+    // pantalla: moviendo el nodo de accesibilidad de la lista.
+    if (i >= 4) await scrollSemantics(page, step);
   }
   await expect(target.first()).toBeAttached();
 }

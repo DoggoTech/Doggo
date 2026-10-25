@@ -8,6 +8,7 @@ import '../../data/providers.dart';
 import '../../data/repositories/repository.dart';
 import '../sitter_profile/sitter_providers.dart';
 import 'dog_form_dialog.dart';
+import '../../shared/widgets/error_state.dart';
 
 /// Mis perros: lista con agregar, editar y borrar.
 class DogsTab extends ConsumerWidget {
@@ -79,7 +80,10 @@ class DogsTab extends ConsumerWidget {
             padding: EdgeInsets.all(32),
             child: Center(child: CircularProgressIndicator()),
           ),
-          error: (_, _) => const Text('No pudimos cargar tus perros.'),
+          error: (_, _) => ErrorState(
+            'No pudimos cargar tus perros.',
+            onRetry: () => ref.invalidate(myDogsProvider),
+          ),
           data: (list) => list.isEmpty
               ? Padding(
                   padding: const EdgeInsets.symmetric(vertical: 40),

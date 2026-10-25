@@ -6,6 +6,7 @@ import '../../core/theme/app_colors.dart';
 import '../../data/models/admin.dart';
 import 'admin_providers.dart';
 import 'admin_widgets.dart';
+import '../../shared/widgets/error_state.dart';
 
 /// Verbo de cada acción de `admin_actions`, para leerla como una frase.
 String auditVerb(String action) => switch (action) {
@@ -53,7 +54,10 @@ class AuditList extends ConsumerWidget {
                 padding: EdgeInsets.all(24),
                 child: Center(child: CircularProgressIndicator()),
               ),
-              error: (e, _) => Text('$e'),
+              error: (_, _) => ErrorState(
+                'No pudimos cargar el historial.',
+                onRetry: () => ref.invalidate(adminActionsProvider),
+              ),
               data: (actions) => actions.isEmpty
                   ? Semantics(
                       container: true,

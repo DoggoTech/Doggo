@@ -10,6 +10,7 @@ import '../../shared/widgets/pill.dart';
 import 'admin_providers.dart';
 import 'admin_widgets.dart';
 import 'audit_list.dart';
+import '../../shared/widgets/error_state.dart';
 
 /// Buscar usuarios por nombre o correo, filtrar y suspender o reactivar.
 class UsersTab extends ConsumerStatefulWidget {
@@ -85,7 +86,10 @@ class _UsersTabState extends ConsumerState<UsersTab> {
             padding: EdgeInsets.all(24),
             child: Center(child: CircularProgressIndicator()),
           ),
-          error: (e, _) => Text('$e'),
+          error: (_, _) => ErrorState(
+            'No pudimos cargar los usuarios.',
+            onRetry: () => ref.invalidate(userSearchProvider),
+          ),
           data: (rows) => rows.isEmpty
               ? Semantics(
                   container: true,

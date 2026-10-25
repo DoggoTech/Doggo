@@ -13,6 +13,8 @@ import '../safety/report_sheet.dart';
 import 'bookings_providers.dart';
 import 'contact_box.dart';
 import 'review_sheet.dart';
+import '../../shared/widgets/error_state.dart';
+import '../../shared/widgets/appear_in.dart';
 
 enum _Section { upcoming, past, cancelled }
 
@@ -80,8 +82,10 @@ class _OwnerBookingsTabState extends ConsumerState<OwnerBookingsTab> {
         .watch(myBookingsProvider)
         .when(
           loading: () => const Center(child: CircularProgressIndicator()),
-          error: (_, _) =>
-              const Center(child: Text('No pudimos cargar tus reservas.')),
+          error: (_, _) => ErrorState(
+            'No pudimos cargar tus reservas.',
+            onRetry: () => ref.invalidate(myBookingsProvider),
+          ),
           data: (all) {
             final now = DateTime.now();
             List<Booking> of(_Section s) =>
@@ -154,10 +158,12 @@ class _OwnerBookingsTabState extends ConsumerState<OwnerBookingsTab> {
                   )
                 else
                   for (final b in shown)
-                    _BookingCard(
+                    AppearIn(
                       key: ValueKey(b.id),
-                      booking: b,
-                      status: _effective(b, now),
+                      child: _BookingCard(
+                        booking: b,
+                        status: _effective(b, now),
+                      ),
                     ),
               ],
             );
@@ -167,7 +173,7 @@ class _OwnerBookingsTabState extends ConsumerState<OwnerBookingsTab> {
 }
 
 class _BookingCard extends ConsumerStatefulWidget {
-  const _BookingCard({super.key, required this.booking, required this.status});
+  const _BookingCard({required this.booking, required this.status});
 
   final Booking booking;
   final BookingStatus status;

@@ -9,6 +9,7 @@ import '../../data/repositories/repository.dart';
 import '../../shared/widgets/pill.dart';
 import 'admin_providers.dart';
 import 'admin_widgets.dart';
+import '../../shared/widgets/error_state.dart';
 
 /// Reportes de usuarios: abiertos (por atender) y atendidos.
 class ReportsTab extends ConsumerStatefulWidget {
@@ -27,7 +28,10 @@ class _ReportsTabState extends ConsumerState<ReportsTab> {
         .watch(reportsProvider)
         .when(
           loading: () => const Center(child: CircularProgressIndicator()),
-          error: (e, _) => Center(child: Text('$e')),
+          error: (_, _) => ErrorState(
+            'No pudimos cargar los reportes.',
+            onRetry: () => ref.invalidate(reportsProvider),
+          ),
           data: (all) {
             final open = all
                 .where((r) => r.status == ReportStatus.open)
