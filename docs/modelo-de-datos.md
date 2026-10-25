@@ -138,6 +138,15 @@ npm run test:db   # 77 pruebas contra Postgres real (PGlite) con roles y JWT sim
 ```
 Cada criterio de aceptación de seguridad del contexto tiene una prueba que lo intenta romper como lo haría un cliente malicioso: llamando a la API directamente.
 
+## Ver la base en tu máquina
+
+```bash
+npm run db:serve     # levanta schema.sql + seed.sql en 127.0.0.1:5433
+psql "postgresql://postgres@127.0.0.1:5433/postgres?sslmode=disable"
+```
+También con TablePlus, DBeaver o Postico: host `127.0.0.1`, puerto `5433`, usuario `postgres`, sin contraseña y SSL desactivado.
+Es Postgres real en memoria: se reinicia limpia cada vez. En un proyecto de Supabase real las mismas tablas se ven en **Table Editor** y se consultan en **SQL Editor**.
+
 ## Archivos
 
 | Archivo | Para qué |
@@ -146,3 +155,4 @@ Cada criterio de aceptación de seguridad del contexto tiene una prueba que lo i
 | `supabase/seed.sql` | 12 cuidadores en Bogotá (10 aprobados, 2 en revisión), un dueño con perros y reseñas |
 | `supabase/assign_roles.sql` | asigna rol a las 4 cuentas de prueba creadas desde el panel |
 | `supabase/tests/` | harness y pruebas |
+| `supabase/dev-db.mjs` | levanta la base en local para explorarla |
