@@ -183,7 +183,7 @@ final selectedSitterIdProvider =
       SelectedSitterNotifier.new,
     );
 
-final sittersProvider = FutureProvider<List<SitterSummary>>(
+final sittersProvider = FutureProvider.autoDispose<List<SitterSummary>>(
   (ref) => ref.watch(repositoryProvider).fetchSitters(),
 );
 

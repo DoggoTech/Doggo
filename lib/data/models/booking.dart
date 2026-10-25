@@ -5,7 +5,10 @@ enum BookingStatus {
   accepted('Aceptada'),
   rejected('Rechazada'),
   cancelled('Cancelada'),
-  completed('Completada');
+  completed('Completada'),
+
+  /// El cuidador no respondió dentro del plazo.
+  expired('Vencida');
 
   const BookingStatus(this.label);
   final String label;
@@ -17,6 +20,7 @@ class Booking {
   const Booking({
     required this.id,
     required this.ownerId,
+    required this.ownerName,
     required this.sitterId,
     required this.sitterName,
     required this.dogId,
@@ -32,6 +36,7 @@ class Booking {
 
   final String id;
   final String ownerId;
+  final String ownerName;
   final String sitterId;
   final String sitterName;
   final String dogId;
@@ -45,4 +50,23 @@ class Booking {
 
   /// Hasta cuándo puede aceptar o rechazar el cuidador.
   final DateTime responseDeadline;
+
+  Booking copyWith({BookingStatus? status}) {
+    return Booking(
+      id: id,
+      ownerId: ownerId,
+      ownerName: ownerName,
+      sitterId: sitterId,
+      sitterName: sitterName,
+      dogId: dogId,
+      dogName: dogName,
+      service: service,
+      startAt: startAt,
+      endAt: endAt,
+      totalCop: totalCop,
+      status: status ?? this.status,
+      createdAt: createdAt,
+      responseDeadline: responseDeadline,
+    );
+  }
 }

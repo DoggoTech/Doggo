@@ -1,3 +1,4 @@
+import '../models/availability.dart';
 import '../models/booking.dart';
 import '../models/dog.dart';
 import '../models/profile.dart';
@@ -84,4 +85,22 @@ abstract class Repository {
     required DateTime startAt,
     required DateTime endAt,
   });
+
+  /// Reservas del usuario con sesión (como dueño o como cuidador), en vivo:
+  /// emite la lista actual y cada cambio (nuevas, aceptadas, vencidas…).
+  Stream<List<Booking>> watchMyBookings();
+
+  /// El cuidador acepta o rechaza una solicitud `pending` dentro del plazo.
+  Future<Booking> respondToBooking(String bookingId, {required bool accept});
+
+  /// El cuidador marca como completada una reserva `accepted`.
+  Future<Booking> completeBooking(String bookingId);
+
+  /// Perfil del cuidador con sesión, aunque esté en revisión (para editarlo).
+  Future<SitterSummary> fetchMySitterProfile();
+
+  /// Servicios activos y su precio en COP (entre $5.000 y $2.000.000).
+  Future<void> saveMyServices(Map<ServiceType, int> services);
+
+  Future<void> saveMyAvailability(WeeklyAvailability availability);
 }

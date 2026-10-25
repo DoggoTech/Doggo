@@ -4,6 +4,9 @@ import '../../data/models/profile.dart';
 import '../../core/theme/app_colors.dart';
 import '../../shared/widgets/doggo_logo.dart';
 import '../map/map_screen.dart';
+import '../sitter_dashboard/agenda_tab.dart';
+import '../sitter_dashboard/requests_tab.dart';
+import '../sitter_dashboard/services_tab.dart';
 import '../profile/profile_screen.dart';
 
 /// Ancho desde el cual la navegación pasa de barra inferior a riel lateral.
@@ -29,6 +32,9 @@ class _Tab {
 }
 
 Widget _mapTab(BuildContext context) => const MapScreen();
+Widget _requestsTab(BuildContext context) => const RequestsTab();
+Widget _agendaTab(BuildContext context) => const AgendaTab();
+Widget _servicesTab(BuildContext context) => const ServicesTab();
 
 const _profileTab = _Tab('Perfil', Icons.person_rounded, '');
 
@@ -40,9 +46,9 @@ const _tabsByRole = {
     _profileTab,
   ],
   UserRole.sitter: [
-    _Tab('Solicitudes', Icons.inbox_rounded, 'Aquí llegarán las solicitudes.'),
-    _Tab('Agenda', Icons.calendar_month_rounded, 'Tu agenda aparecerá aquí.'),
-    _Tab('Servicios', Icons.sell_rounded, 'Define tus servicios y precios.'),
+    _Tab('Solicitudes', Icons.inbox_rounded, '', builder: _requestsTab),
+    _Tab('Agenda', Icons.calendar_month_rounded, '', builder: _agendaTab),
+    _Tab('Servicios', Icons.sell_rounded, '', builder: _servicesTab),
     _profileTab,
   ],
   UserRole.admin: [

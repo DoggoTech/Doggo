@@ -879,6 +879,103 @@ describe('cambio de rol desde ajustes', () => {
 });
 
 // ---------------------------------------------------------------------------
+describe('horario del cuidador y vencimiento', () => {
+  // Un día a las HH:00 hora de Bogotá, dentro de 2 días.
+  const AT = (hour) =>
+    `(date_trunc('day', now() at time zone 'America/Bogota') + interval '2 days ${hour} hours') at time zone 'America/Bogota'`;
+  const bookAt = (t, hour) =>
+    t.as(IDS.marcela, () =>
+      t.fails(
+        `insert into bookings (owner_id, sitter_id, dog_id, service_type, start_at, end_at, total_cop)
+         values ($1, $2, $3, 'walk', ${AT(hour)}, ${AT(hour)} + interval '1 hour', 1)`,
+        [IDS.marcela, IDS.laura, IDS.rocky],
+      ),
+    );
+  const setWindow = (t, startMin, endMin) =>
+    t.as(IDS.laura, () =>
+      t.q(
+        `insert into sitter_availability (sitter_id, weekday, start_minute, end_minute)
+         values ($1, extract(isodow from ${AT(0)} at time zone 'America/Bogota')::int, $2, $3)`,
+        [IDS.laura, startMin, endMin],
+      ),
+    );
+
+  test('sin horario definido no hay restricción', () =>
+    tx(async (t) => {
+      assert.equal(await bookAt(t, 9), null);
+    }));
+
+  test('la reserva debe empezar dentro del horario del cuidador (hora de Bogotá)', () =>
+    tx(async (t) => {
+      await setWindow(t, 600, 720); // 10:00–12:00
+      rejects(await bookAt(t, 9), /outside_availability/);
+      assert.equal(await bookAt(t, 11), null);
+      // Otro día de la semana sin fila: ese día no atiende.
+      const other = await t.as(IDS.marcela, () =>
+        t.fails(
+          `insert into bookings (owner_id, sitter_id, dog_id, service_type, start_at, end_at, total_cop)
+           values ($1, $2, $3, 'walk', ${AT(11)} + interval '1 day', ${AT(11)} + interval '1 day 1 hour', 1)`,
+          [IDS.marcela, IDS.laura, IDS.rocky],
+        ),
+      );
+      rejects(other, /outside_availability/);
+    }));
+
+  test('el horario es público, pero solo su dueño lo edita', () =>
+    tx(async (t) => {
+      await setWindow(t, 600, 720);
+      const pub = await t.as(null, () => t.q(`select * from sitter_availability where sitter_id = $1`, [IDS.laura]));
+      assert.equal(pub.length, 1);
+      const upd = await t.as(IDS.andres, () =>
+        t.q(`update sitter_availability set end_minute = 1400 where sitter_id = $1 returning 1`, [IDS.laura]),
+      );
+      assert.equal(upd.length, 0);
+      rejects(
+        await t.as(IDS.andres, () =>
+          t.fails(`insert into sitter_availability values ($1, 1, 0, 60)`, [IDS.laura]),
+        ),
+        /row-level security/,
+      );
+      rejects(
+        await t.as(IDS.marcela, () =>
+          t.fails(`insert into sitter_availability values ($1, 1, 0, 60)`, [IDS.marcela]),
+        ),
+        /row-level security/,
+      );
+    }));
+
+  test('un horario con fin antes del inicio se rechaza', () =>
+    tx(async (t) => {
+      rejects(
+        await t.as(IDS.laura, () => t.fails(`insert into sitter_availability values ($1, 1, 700, 600)`, [IDS.laura])),
+        /availability_window/,
+      );
+    }));
+
+  test('expire_overdue_bookings vence las pendientes con el plazo pasado, y solo esas', () =>
+    tx(async (t) => {
+      const late = await book(t);
+      const onTime = await book(t, { service: 'daycare' });
+      await t.q(`update bookings set response_deadline = now() - interval '1 minute' where id = $1`, [late.id]);
+      const [{ n }] = await t.q(`select public.expire_overdue_bookings() as n`);
+      assert.equal(n, 1);
+      const rows = await t.q(`select id, status from bookings where id in ($1, $2)`, [late.id, onTime.id]);
+      const by = Object.fromEntries(rows.map((r) => [r.id, r.status]));
+      assert.equal(by[late.id], 'expired');
+      assert.equal(by[onTime.id], 'pending');
+      // Vencida: el cuidador no puede aceptarla.
+      rejects(
+        await t.as(IDS.laura, () => t.fails(`update bookings set status = 'accepted' where id = $1`, [late.id])),
+        /invalid_status_transition/,
+      );
+    }));
+
+  test('ningún cliente puede ejecutar el vencimiento a mano', () =>
+    tx(async (t) => {
+      rejects(await t.as(IDS.marcela, () => t.fails(`select public.expire_overdue_bookings()`)), /permission denied/);
+    }));
+});
+
 describe('servicios del cuidador', () => {
   test('un cuidador gestiona solo sus servicios', () =>
     tx(async (t) => {

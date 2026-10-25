@@ -55,3 +55,16 @@ String formatTime(DateTime d) =>
 
 /// "sáb 25 oct, 9:00"
 String formatDateTime(DateTime d) => '${formatDay(d)}, ${formatTime(d)}';
+
+/// Tiempo restante para responder: "1 h 42 min", "25 min", "menos de 1 min".
+String formatRemaining(Duration d) {
+  if (d.inMinutes < 1) return 'menos de 1 min';
+  final h = d.inHours;
+  final m = d.inMinutes % 60;
+  if (h == 0) return '$m min';
+  return m == 0 ? '$h h' : '$h h $m min';
+}
+
+/// 450 -> "7:30"
+String formatMinuteOfDay(int minute) =>
+    '${minute ~/ 60}:${(minute % 60).toString().padLeft(2, '0')}';

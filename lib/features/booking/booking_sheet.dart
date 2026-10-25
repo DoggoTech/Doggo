@@ -53,8 +53,8 @@ class _BookingSheetState extends ConsumerState<_BookingSheet> {
   late int _amount = _defaultAmount(_service);
   String? _dogId;
   late List<DateTime> _days = _bookableDays();
-  late DateTime _day = _days.first;
-  late DateTime _start = _slotsFor(_day).first;
+  late DateTime _day = _days.isEmpty ? DateTime.now() : _days.first;
+  late DateTime _start = _days.isEmpty ? DateTime.now() : _slotsFor(_day).first;
   String? _error;
   bool _busy = false;
   Booking? _confirmed;
@@ -63,10 +63,15 @@ class _BookingSheetState extends ConsumerState<_BookingSheet> {
 
   /// Horas de inicio válidas de un día: dentro de la franja y con al menos
   /// 1 h de anticipación (regla de la base).
-  List<DateTime> _slotsFor(DateTime day) => [
-    for (var m = _firstMinute; m <= _lastMinute; m += _slotMinutes)
-      DateTime(day.year, day.month, day.day, m ~/ 60, m % 60),
-  ].where(startIsBookable).toList();
+  List<DateTime> _slotsFor(DateTime day) =>
+      [
+            for (var m = _firstMinute; m <= _lastMinute; m += _slotMinutes)
+              DateTime(day.year, day.month, day.day, m ~/ 60, m % 60),
+          ]
+          .where(
+            (s) => startIsBookable(s) && widget.sitter.availability.allows(s),
+          )
+          .toList();
 
   List<DateTime> _bookableDays() {
     final now = DateTime.now();
@@ -136,6 +141,19 @@ class _BookingSheetState extends ConsumerState<_BookingSheet> {
   @override
   Widget build(BuildContext context) {
     if (_confirmed != null) return _Confirmed(booking: _confirmed!);
+    if (_days.isEmpty) {
+      return Padding(
+        padding: const EdgeInsets.fromLTRB(24, 0, 24, 32),
+        child: Semantics(
+          container: true,
+          child: Text(
+            '${widget.sitter.name.split(' ').first} no tiene horarios disponibles en los próximos $_daysAhead días.',
+            textAlign: TextAlign.center,
+            style: Theme.of(context).textTheme.titleMedium,
+          ),
+        ),
+      );
+    }
 
     final s = widget.sitter;
     final theme = Theme.of(context);

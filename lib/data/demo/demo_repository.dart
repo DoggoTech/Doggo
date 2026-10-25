@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:latlong2/latlong.dart';
 
+import '../models/availability.dart';
 import '../models/booking.dart';
 import '../models/dog.dart';
 import '../models/profile.dart';
@@ -16,10 +17,13 @@ const demoPassword = 'doggo123';
 
 /// Implementación en memoria: sin backend ni persistencia entre recargas.
 class DemoRepository implements Repository {
-  DemoRepository() {
+  /// [clock] permite fijar la hora en las pruebas (por defecto, la real).
+  DemoRepository({DateTime Function()? clock}) : _now = clock ?? DateTime.now {
     for (final p in _seedProfiles) {
       _users[p.email] = _DemoUser(p, demoPassword);
     }
+    // Las solicitudes sin respuesta vencen solas al pasar su plazo.
+    Timer.periodic(const Duration(seconds: 15), (_) => _expireOverdue());
   }
 
   static final _seedProfiles = [
@@ -74,6 +78,7 @@ class DemoRepository implements Repository {
     UserRole.superadmin: 'superadmin@doggo.app',
   };
 
+  final DateTime Function() _now;
   final _users = <String, _DemoUser>{};
   final _dogs = <Dog>[
     const Dog(
@@ -92,6 +97,14 @@ class DemoRepository implements Repository {
     ),
   ];
   final _bookings = <Booking>[];
+  final _bookingChanges = StreamController<void>.broadcast();
+
+  /// Cuidadores aprobados (visibles en el mapa). Mutable: el cuidador edita
+  /// sus servicios y horarios.
+  final _sitters = [..._demoSitters];
+
+  /// Perfil en preparación de cuidadores que aún no están en el mapa.
+  final _pendingSitters = <String, SitterSummary>{};
   final _controller = StreamController<Profile?>.broadcast();
   Profile? _current;
   var _nextId = 1;
@@ -168,7 +181,7 @@ class DemoRepository implements Repository {
       status: role == UserRole.sitter
           ? UserStatus.pendingReview
           : UserStatus.approved,
-      termsAcceptedAt: DateTime.now(),
+      termsAcceptedAt: _now(),
     );
     _users[normalized] = _DemoUser(profile, password);
     _setCurrent(profile);
@@ -206,13 +219,13 @@ class DemoRepository implements Repository {
   @override
   Future<List<SitterSummary>> fetchSitters() async {
     await _latency();
-    return List.unmodifiable(_demoSitters);
+    return List.unmodifiable(_sitters);
   }
 
   @override
   Future<SitterSummary?> fetchSitter(String id) async {
     await _latency();
-    for (final s in _demoSitters) {
+    for (final s in _sitters) {
       if (s.id == id) return s;
     }
     return null;
@@ -278,7 +291,7 @@ class DemoRepository implements Repository {
       throw const ValidationFailure('Tu cuenta no puede hacer reservas.');
     }
     SitterSummary? sitter;
-    for (final s in _demoSitters) {
+    for (final s in _sitters) {
       if (s.id == sitterId) sitter = s;
     }
     if (sitter == null || sitter.id == me.id) {
@@ -289,14 +302,19 @@ class DemoRepository implements Repository {
       if (d.id == dogId && d.ownerId == me.id) dog = d;
     }
     if (dog == null) throw const ValidationFailure('Elige uno de tus perros.');
+    if (!sitter.availability.allows(startAt)) {
+      throw const ValidationFailure(
+        'Ese horario está fuera de la disponibilidad del cuidador.',
+      );
+    }
     final price = sitter.services[service];
     if (price == null) {
       throw const ValidationFailure('Este cuidador no ofrece ese servicio.');
     }
-    if (!startAt.isAfter(DateTime.now())) {
+    if (!startAt.isAfter(_now())) {
       throw const ValidationFailure('Elige una fecha y hora en el futuro.');
     }
-    if (!startIsBookable(startAt)) {
+    if (!startIsBookable(startAt, now: _now())) {
       throw const ValidationFailure(
         'Reserva con al menos 1 hora de anticipación: el cuidador necesita tiempo para responder.',
       );
@@ -306,10 +324,11 @@ class DemoRepository implements Repository {
         'La hora de fin debe ser posterior a la de inicio.',
       );
     }
-    final now = DateTime.now();
+    final now = _now();
     final booking = Booking(
       id: 'demo-booking-${_nextId++}',
       ownerId: me.id,
+      ownerName: me.fullName,
       sitterId: sitter.id,
       sitterName: sitter.name,
       dogId: dog.id,
@@ -323,7 +342,172 @@ class DemoRepository implements Repository {
       responseDeadline: responseDeadline(now, startAt),
     );
     _bookings.add(booking);
+    _notifyBookings();
     return booking;
+  }
+
+  @override
+  Stream<List<Booking>> watchMyBookings() async* {
+    _expireOverdue();
+    yield _myBookings();
+    await for (final _ in _bookingChanges.stream) {
+      yield _myBookings();
+    }
+  }
+
+  List<Booking> _myBookings() {
+    final me = _current;
+    if (me == null) return const [];
+    return _bookings
+        .where((b) => b.ownerId == me.id || b.sitterId == me.id)
+        .toList()
+      ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
+  }
+
+  void _notifyBookings() => _bookingChanges.add(null);
+
+  void _expireOverdue() {
+    final now = _now();
+    var changed = false;
+    for (var i = 0; i < _bookings.length; i++) {
+      final b = _bookings[i];
+      if (b.status == BookingStatus.pending &&
+          !now.isBefore(b.responseDeadline)) {
+        _bookings[i] = b.copyWith(status: BookingStatus.expired);
+        changed = true;
+      }
+    }
+    if (changed) _notifyBookings();
+  }
+
+  /// Reserva del cuidador con sesión, o error si no le pertenece.
+  int _sitterBookingIndex(String bookingId) {
+    final me = _current;
+    if (me == null ||
+        me.role != UserRole.sitter ||
+        me.status != UserStatus.approved) {
+      throw const ValidationFailure(
+        'Solo un cuidador aprobado puede gestionar solicitudes.',
+      );
+    }
+    final i = _bookings.indexWhere(
+      (b) => b.id == bookingId && b.sitterId == me.id,
+    );
+    if (i < 0) throw const ValidationFailure('Esa reserva no existe.');
+    return i;
+  }
+
+  @override
+  Future<Booking> respondToBooking(
+    String bookingId, {
+    required bool accept,
+  }) async {
+    await _latency();
+    _expireOverdue();
+    final i = _sitterBookingIndex(bookingId);
+    final b = _bookings[i];
+    if (b.status == BookingStatus.expired) {
+      throw const ValidationFailure('El plazo para responder ya venció.');
+    }
+    if (b.status != BookingStatus.pending) {
+      throw const ValidationFailure('Esta solicitud ya fue respondida.');
+    }
+    final updated = b.copyWith(
+      status: accept ? BookingStatus.accepted : BookingStatus.rejected,
+    );
+    _bookings[i] = updated;
+    _notifyBookings();
+    return updated;
+  }
+
+  @override
+  Future<Booking> completeBooking(String bookingId) async {
+    await _latency();
+    final i = _sitterBookingIndex(bookingId);
+    final b = _bookings[i];
+    if (b.status != BookingStatus.accepted) {
+      throw const ValidationFailure('Solo se completan reservas aceptadas.');
+    }
+    final updated = b.copyWith(status: BookingStatus.completed);
+    _bookings[i] = updated;
+    _notifyBookings();
+    return updated;
+  }
+
+  /// El cuidador con sesión (rol sitter, aunque esté en revisión).
+  Profile _requireSitter() {
+    final me = _current;
+    if (me == null ||
+        me.role != UserRole.sitter ||
+        me.status == UserStatus.suspended) {
+      throw const ValidationFailure(
+        'Solo los cuidadores tienen servicios y horarios.',
+      );
+    }
+    return me;
+  }
+
+  @override
+  Future<SitterSummary> fetchMySitterProfile() async {
+    await _latency();
+    final me = _requireSitter();
+    for (final s in _sitters) {
+      if (s.id == me.id) return s;
+    }
+    return _pendingSitters.putIfAbsent(
+      me.id,
+      () => SitterSummary(
+        id: me.id,
+        name: me.fullName,
+        neighborhood: 'Bogotá',
+        bio: me.bio ?? '',
+        location: const LatLng(4.6533, -74.0836),
+        radiusKm: 5,
+        services: const {},
+      ),
+    );
+  }
+
+  void _updateMySitter(SitterSummary Function(SitterSummary) change) {
+    final me = _requireSitter();
+    final i = _sitters.indexWhere((s) => s.id == me.id);
+    if (i >= 0) {
+      _sitters[i] = change(_sitters[i]);
+    } else {
+      _pendingSitters[me.id] = change(_pendingSitters[me.id]!);
+    }
+  }
+
+  @override
+  Future<void> saveMyServices(Map<ServiceType, int> services) async {
+    await fetchMySitterProfile();
+    if (services.isEmpty) {
+      throw const ValidationFailure('Activa al menos un servicio.');
+    }
+    if (services.values.any((p) => p < 5000 || p > 2000000)) {
+      throw const ValidationFailure(
+        'Los precios deben estar entre \$5.000 y \$2.000.000.',
+      );
+    }
+    _updateMySitter((s) => s.copyWith(services: Map.unmodifiable(services)));
+  }
+
+  @override
+  Future<void> saveMyAvailability(WeeklyAvailability availability) async {
+    await fetchMySitterProfile();
+    if (availability.days.isEmpty) {
+      throw const ValidationFailure('Elige al menos un día de atención.');
+    }
+    for (final w in availability.days.values) {
+      if (w.startMinute < 0 ||
+          w.endMinute > 1439 ||
+          w.endMinute < w.startMinute) {
+        throw const ValidationFailure(
+          'Revisa los horarios: la hora de fin debe ser posterior al inicio.',
+        );
+      }
+    }
+    _updateMySitter((s) => s.copyWith(availability: availability));
   }
 
   bool _hasActiveBookings(Profile profile) => _bookings.any(
