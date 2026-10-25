@@ -9,6 +9,7 @@ import '../../data/repositories/repository.dart';
 import '../../shared/widgets/pill.dart';
 import 'admin_providers.dart';
 import 'admin_widgets.dart';
+import 'audit_list.dart';
 
 /// Buscar usuarios por nombre o correo, filtrar y suspender o reactivar.
 class UsersTab extends ConsumerStatefulWidget {
@@ -97,6 +98,11 @@ class _UsersTabState extends ConsumerState<UsersTab> {
                   ],
                 ),
         ),
+        // El superadmin ve la auditoría completa en Equipo.
+        if (me?.role == UserRole.admin) ...[
+          const SizedBox(height: 8),
+          const AuditList(title: 'Mi historial'),
+        ],
       ],
     );
   }
@@ -160,11 +166,39 @@ class _UserRowState extends ConsumerState<_UserRow> {
     }
   }
 
+  Future<void> _delete() async {
+    final u = widget.user;
+    final ok = await confirmAction(
+      context,
+      title: '¿Eliminar la cuenta de ${u.name}?',
+      body:
+          'Se borran para siempre su perfil, sus perros y sus reservas pasadas. '
+          'No se puede deshacer; la auditoría conserva el registro.',
+      confirm: 'Sí, eliminar',
+    );
+    if (!ok || !mounted) return;
+    setState(() => _busy = true);
+    final messenger = ScaffoldMessenger.of(context);
+    try {
+      await ref.read(repositoryProvider).deleteUser(u.id);
+      refreshAdminData(ref);
+      messenger.showSnackBar(
+        SnackBar(content: Text('La cuenta de ${u.name} fue eliminada')),
+      );
+    } on ValidationFailure catch (e) {
+      messenger.showSnackBar(SnackBar(content: Text(e.message)));
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final u = widget.user;
     final theme = Theme.of(context);
     final protected = _protectedReason;
+    final canDelete =
+        protected == null && widget.me?.role == UserRole.superadmin;
     final suspended = u.status == UserStatus.suspended;
     return AdminCard(
       child: Column(
@@ -217,6 +251,23 @@ class _UserRowState extends ConsumerState<_UserRow> {
                 ),
             ],
           ),
+          if (canDelete)
+            Align(
+              alignment: Alignment.centerRight,
+              child: Semantics(
+                container: true,
+                button: true,
+                label: 'Eliminar cuenta de ${u.name}',
+                onTap: _busy ? null : _delete,
+                excludeSemantics: true,
+                child: TextButton.icon(
+                  onPressed: _busy ? null : _delete,
+                  style: TextButton.styleFrom(foregroundColor: AppColors.error),
+                  icon: const Icon(Icons.delete_outline_rounded, size: 18),
+                  label: const Text('Eliminar cuenta'),
+                ),
+              ),
+            ),
         ],
       ),
     );

@@ -5,6 +5,7 @@ import '../../core/theme/app_colors.dart';
 import '../../shared/widgets/doggo_logo.dart';
 import '../admin/approvals_tab.dart';
 import '../admin/reports_tab.dart';
+import '../admin/team_tab.dart';
 import '../admin/users_tab.dart';
 import '../bookings/owner_bookings_tab.dart';
 import '../dogs/dogs_tab.dart';
@@ -43,6 +44,7 @@ Widget _dogsTab(BuildContext context) => const DogsTab();
 Widget _approvalsTab(BuildContext context) => const ApprovalsTab();
 Widget _reportsTab(BuildContext context) => const ReportsTab();
 Widget _usersTab(BuildContext context) => const UsersTab();
+Widget _teamTab(BuildContext context) => const TeamTab();
 Widget _agendaTab(BuildContext context) => const AgendaTab();
 Widget _servicesTab(BuildContext context) => const ServicesTab();
 
@@ -81,7 +83,7 @@ const _tabsByRole = {
     ),
     _Tab('Reportes', Icons.flag_rounded, '', builder: _reportsTab),
     _Tab('Usuarios', Icons.group_rounded, '', builder: _usersTab),
-    _Tab('Equipo', Icons.shield_rounded, 'Gobierno del equipo de admins.'),
+    _Tab('Equipo', Icons.shield_rounded, '', builder: _teamTab),
     _profileTab,
   ],
 };

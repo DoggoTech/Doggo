@@ -866,8 +866,18 @@ describe('administración y superadmin', () => {
       const sa = await adminUser(t, 'sa@t.test', 'superadmin');
       await t.as(sa, () => t.q(`select superadmin_delete_user($1)`, [IDS.natalia]));
       assert.equal((await t.q(`select 1 from profiles where id = $1`, [IDS.natalia])).length, 0);
-      const log = await t.q(`select action from admin_actions where target_user_id = $1`, [IDS.natalia]);
+      const log = await t.q(`select action, details from admin_actions where target_user_id = $1`, [IDS.natalia]);
       assert.deepEqual(log.map((l) => l.action), ['delete_user']);
+      assert.equal(log[0].details.target_name, 'Natalia Peña');
+    }));
+
+  test('no se elimina una cuenta con reservas activas', () =>
+    tx(async (t) => {
+      const sa = await adminUser(t, 'sa@t.test', 'superadmin');
+      await book(t);
+      for (const who of [IDS.laura, IDS.marcela]) {
+        rejects(await t.as(sa, () => t.fails(`select superadmin_delete_user($1)`, [who])), /active_bookings/);
+      }
     }));
 });
 

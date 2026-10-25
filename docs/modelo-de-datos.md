@@ -118,8 +118,8 @@ Promedio y cantidad de reseñas por cuidador (`security_invoker`, respeta RLS).
 | `admin_resolve_report(report, resolution, suspend_reported)` | admin, superadmin | marca revisado/descartado y opcionalmente suspende |
 | `admin_search_users(q, role, status)` | admin, superadmin | busca por nombre o **correo** (el correo vive en `auth.users`) |
 | `switch_role(new_role)` | cualquier usuario | dueño ↔ cuidador; **bloqueado con reservas activas** |
-| `superadmin_set_admin(target, make_admin)` | solo superadmin | asciende a admin o le quita el rol |
-| `superadmin_delete_user(target)` | solo superadmin | elimina la cuenta |
+| `superadmin_set_admin(target, make_admin)` | solo superadmin | asciende a admin (no con reservas activas) o le quita el rol (vuelve a dueño) |
+| `superadmin_delete_user(target)` | solo superadmin | elimina la cuenta (no con reservas activas); la auditoría guarda su nombre en `details.target_name` |
 
 Reglas de protección (en `assert_can_moderate`): nadie se modifica a sí mismo · nadie toca al superadmin · un admin no toca a otro admin. Cada acción escribe en `admin_actions`.
 

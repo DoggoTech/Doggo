@@ -994,6 +994,65 @@ class DemoRepository implements Repository {
     _log(suspended ? 'suspend_user' : 'reactivate_user', target);
   }
 
+  /// Mismas reglas que `superadmin_set_admin` / `superadmin_delete_user`.
+  Profile _assertSuperadminCanTouch(String targetId) {
+    final me = _requireAdmin();
+    if (me.role != UserRole.superadmin) {
+      throw const ValidationFailure(
+        'Solo el superadministrador puede hacer esto.',
+      );
+    }
+    return _assertCanModerate(targetId);
+  }
+
+  @override
+  Future<void> setAdmin(String userId, {required bool makeAdmin}) async {
+    await _latency();
+    final target = _assertSuperadminCanTouch(userId);
+    if (makeAdmin) {
+      if (target.role == UserRole.admin) return;
+      if (_hasActiveBookings(target)) {
+        throw const ValidationFailure(
+          'Tiene reservas activas: espera a que terminen.',
+        );
+      }
+      _updateProfile(
+        target.copyWith(role: UserRole.admin, status: UserStatus.approved),
+      );
+      // Un admin no sale en el mapa.
+      _sitters.removeWhere((s) => s.id == userId);
+      _pendingSitters.remove(userId);
+      _log('promote_admin', target, details: 'antes: ${target.role.label}');
+    } else {
+      if (target.role != UserRole.admin) {
+        throw const ValidationFailure('Ese usuario no es administrador.');
+      }
+      _updateProfile(
+        target.copyWith(role: UserRole.owner, status: UserStatus.approved),
+      );
+      _log('revoke_admin', target);
+    }
+  }
+
+  @override
+  Future<void> deleteUser(String userId) async {
+    await _latency();
+    final target = _assertSuperadminCanTouch(userId);
+    if (_hasActiveBookings(target)) {
+      throw const ValidationFailure(
+        'Tiene reservas activas: espera a que terminen.',
+      );
+    }
+    _log('delete_user', target, details: 'era ${target.role.label}');
+    _users.remove(target.email);
+    _sitters.removeWhere((s) => s.id == userId);
+    _pendingSitters.remove(userId);
+    _private.remove(userId);
+    _dogs.removeWhere((d) => d.ownerId == userId);
+    _bookings.removeWhere((b) => b.ownerId == userId || b.sitterId == userId);
+    _reviews.removeWhere((r) => r.sitterId == userId);
+  }
+
   @override
   Future<List<AdminAction>> fetchAdminActions() async {
     await _latency();

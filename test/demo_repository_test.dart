@@ -802,6 +802,91 @@ void main() {
       );
     });
 
+    group('superadmin: equipo', () {
+      setUp(() => as('superadmin@doggo.app'));
+
+      test(
+        'nombra admin a un cuidador: sale del mapa y entra al panel',
+        () async {
+          await r.setAdmin(laura, makeAdmin: true);
+          expect((await r.fetchSitters()).any((s) => s.id == laura), isFalse);
+          expect(
+            (await r.searchUsers(role: UserRole.admin)).map((u) => u.id),
+            contains(laura),
+          );
+          expect((await r.fetchAdminActions()).first.action, 'promote_admin');
+        },
+      );
+
+      test('quitar el rol deja la cuenta como dueño', () async {
+        await r.setAdmin('demo-admin', makeAdmin: false);
+        final row = (await r.searchUsers(query: 'admin@doggo.app'))
+            .singleWhere((u) => u.id == 'demo-admin');
+        expect(row.role, UserRole.owner);
+        await r.signOut();
+        await r.signIn(email: 'admin@doggo.app', password: demoPassword);
+        expect(
+          () => r.fetchPendingSitters(),
+          throwsA(isA<ValidationFailure>()),
+        );
+      });
+
+      test(
+        'no puede tocarse a sí mismo ni quitar el rol a quien no es admin',
+        () async {
+          expect(
+            () => r.setAdmin('demo-superadmin', makeAdmin: false),
+            throwsA(isA<ValidationFailure>()),
+          );
+          expect(
+            () => r.setAdmin(laura, makeAdmin: false),
+            throwsA(isA<ValidationFailure>()),
+          );
+          expect(
+            () => r.deleteUser('demo-superadmin'),
+            throwsA(isA<ValidationFailure>()),
+          );
+        },
+      );
+
+      test('un admin no puede nombrar admins ni eliminar cuentas', () async {
+        await as('admin@doggo.app');
+        expect(
+          () => r.setAdmin(laura, makeAdmin: true),
+          throwsA(isA<ValidationFailure>()),
+        );
+        expect(() => r.deleteUser(laura), throwsA(isA<ValidationFailure>()));
+      });
+
+      test(
+        'eliminar borra la cuenta y la auditoría guarda el nombre',
+        () async {
+          await r.deleteUser(natalia);
+          expect(await r.searchUsers(query: 'natalia'), isEmpty);
+          final log = (await r.fetchAdminActions()).first;
+          expect(log.action, 'delete_user');
+          expect(log.targetName, 'Natalia Peña');
+        },
+      );
+
+      test('no elimina ni asciende a quien tiene reservas activas', () async {
+        await as('dueno@doggo.app');
+        await r.createBooking(
+          sitterId: laura,
+          dogId: rocky,
+          service: ServiceType.walk,
+          startAt: tomorrow9,
+          endAt: tomorrow9.add(const Duration(hours: 1)),
+        );
+        await as('superadmin@doggo.app');
+        expect(() => r.deleteUser(laura), throwsA(isA<ValidationFailure>()));
+        expect(
+          () => r.setAdmin('demo-owner', makeAdmin: true),
+          throwsA(isA<ValidationFailure>()),
+        );
+      });
+    });
+
     test('las cuentas de ejemplo no permiten iniciar sesión', () async {
       await r.signOut();
       expect(
