@@ -63,6 +63,18 @@ from (values
 ) as v (id, bio, radius_km, status, verified, img)
 where p.id = v.id;
 
+-- 2b. Barrio que muestra el mapa (el mismo de la dirección de ejemplo).
+update public.profiles p set neighborhood = v.n
+from (values
+  ('a1000000-0000-4000-8000-000000000001'::uuid, 'Chapinero'),  ('a1000000-0000-4000-8000-000000000002'::uuid, 'Usaquén'),
+  ('a1000000-0000-4000-8000-000000000003'::uuid, 'Cedritos'),   ('a1000000-0000-4000-8000-000000000004'::uuid, 'Teusaquillo'),
+  ('a1000000-0000-4000-8000-000000000005'::uuid, 'Suba'),       ('a1000000-0000-4000-8000-000000000006'::uuid, 'Kennedy'),
+  ('a1000000-0000-4000-8000-000000000007'::uuid, 'El Chicó'),   ('a1000000-0000-4000-8000-000000000008'::uuid, 'Fontibón'),
+  ('a1000000-0000-4000-8000-000000000009'::uuid, 'Engativá'),   ('a1000000-0000-4000-8000-000000000010'::uuid, 'La Candelaria'),
+  ('a1000000-0000-4000-8000-000000000011'::uuid, 'Bosa'),       ('a1000000-0000-4000-8000-000000000012'::uuid, 'Restrepo')
+) as v (id, n)
+where p.id = v.id;
+
 -- 3. Ubicación exacta (privada). El trigger calcula la aproximada que ve el mapa.
 update public.profile_private pp set
   exact_lat = v.lat, exact_lng = v.lng, address = v.addr, phone = v.phone

@@ -42,6 +42,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   });
 
   Future<void> _demo() => _run(() async {
+    // Con Supabase configurado, "Probar demo" pasa a los datos de ejemplo.
+    ref.read(appModeProvider.notifier).useDemo();
     await ref
         .read(repositoryProvider)
         .signIn(

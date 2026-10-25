@@ -17,7 +17,7 @@ update public.profiles set full_name = 'Daniela Dueña', terms_accepted_at = now
 
 update public.profiles
    set role = 'sitter', status = 'approved', verified = true,
-       full_name = 'Carlos Cuidador', radius_km = 5, terms_accepted_at = now(),
+       full_name = 'Carlos Cuidador', radius_km = 5, neighborhood = 'Chapinero', terms_accepted_at = now(),
        bio = 'Cuidador de prueba: paseos y guardería en Chapinero.'
  where id = (select id from auth.users where email = 'cuidador@doggo.app');
 

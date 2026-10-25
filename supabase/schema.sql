@@ -67,6 +67,8 @@ create table public.profiles (
   approx_lat        double precision check (approx_lat between -90 and 90),
   approx_lng        double precision check (approx_lng between -180 and 180),
   radius_km         integer check (radius_km between 1 and 50),
+  -- Barrio que el cuidador muestra en el mapa ("Chapinero"), nunca la dirección.
+  neighborhood      text check (char_length(neighborhood) <= 60 and not private.contains_contact_info(neighborhood)),
   status            public.user_status not null default 'approved',
   verified          boolean not null default false,
   terms_accepted_at timestamptz,
@@ -148,6 +150,9 @@ create table public.reviews (
   sitter_id  uuid not null references public.profiles (id) on delete cascade,
   owner_id   uuid not null references public.profiles (id) on delete cascade,
   rating     smallint not null check (rating between 1 and 5),
+  -- "Daniela D.": lo fija el trigger. El perfil del dueño no es público, así
+  -- que el nombre se guarda aquí para mostrarlo junto a la reseña.
+  author_name text not null default '',
   comment    text check (char_length(comment) <= 500 and not private.contains_contact_info(comment)),
   created_at timestamptz not null default now()
 );
@@ -495,10 +500,21 @@ begin
   if private.is_client_role() and auth.uid() is distinct from b.owner_id then
     raise exception 'forbidden' using errcode = '42501';
   end if;
-  new.owner_id  := b.owner_id;
-  new.sitter_id := b.sitter_id;
+  new.owner_id    := b.owner_id;
+  new.sitter_id   := b.sitter_id;
+  new.author_name := private.short_name(b.owner_id);
   return new;
 end;
+$$;
+
+-- "Daniela Dueña" -> "Daniela D." (nombre y la inicial del apellido).
+create function private.short_name(uid uuid)
+returns text language sql stable security definer set search_path = public as $$
+  select case
+           when split_part(trim(full_name), ' ', 2) = '' then split_part(trim(full_name), ' ', 1)
+           else split_part(trim(full_name), ' ', 1) || ' ' || left(split_part(trim(full_name), ' ', 2), 1) || '.'
+         end
+    from profiles where id = uid;
 $$;
 
 create function private.booking_for_review(b uuid)
@@ -595,10 +611,11 @@ create policy profile_private_select on public.profile_private for select using 
 create policy profile_private_update_own on public.profile_private for update
   using (id = auth.uid()) with check (id = auth.uid());
 
--- dogs: el dueño todo; el cuidador ve al perro de una reserva pendiente o aceptada.
+-- dogs: el dueño todo; el cuidador ve al perro de cualquier reserva suya (el
+-- nombre aparece en su historial). Las notas médicas siguen aparte (dog_notes).
 create policy dogs_select on public.dogs for select using (
   owner_id = auth.uid()
-  or private.sitter_has_dog_booking(id, array['pending', 'accepted']::public.booking_status[])
+  or private.sitter_has_dog_booking(id, array['pending', 'accepted', 'rejected', 'cancelled', 'completed', 'expired']::public.booking_status[])
 );
 create policy dogs_insert_own on public.dogs for insert
   with check (owner_id = auth.uid() and private.has_role(auth.uid(), 'owner'));
@@ -947,7 +964,7 @@ revoke all on all functions in schema public from public, anon, authenticated;
 
 -- Público (anon): lo mismo que ve cualquiera en el mapa.
 grant select (id, role, full_name, avatar_url, bio, approx_lat, approx_lng,
-              radius_km, status, verified)
+              radius_km, neighborhood, status, verified)
   on public.profiles to anon;
 grant select on public.sitter_services, public.reviews, public.sitter_rating_stats,
                 public.sitter_availability to anon;
@@ -957,7 +974,7 @@ grant select on public.profiles, public.profile_private, public.dogs, public.dog
                 public.sitter_services, public.bookings, public.reviews, public.reports,
                 public.admin_actions, public.sitter_rating_stats, public.sitter_availability
   to authenticated;
-grant update (full_name, avatar_url, bio, radius_km) on public.profiles to authenticated;
+grant update (full_name, avatar_url, bio, radius_km, neighborhood) on public.profiles to authenticated;
 grant update (phone, exact_lat, exact_lng, address) on public.profile_private to authenticated;
 grant insert, update, delete on public.dogs, public.dog_notes, public.sitter_services,
                                public.sitter_availability to authenticated;

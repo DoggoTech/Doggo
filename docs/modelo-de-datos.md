@@ -49,12 +49,13 @@ erDiagram
 | `avatar_url`, `bio` | text | `bio` ≤ 600 y **sin teléfonos, correos ni enlaces** (CHECK) |
 | `approx_lat`, `approx_lng` | double | ubicación del mapa (la calcula un trigger, ver abajo) |
 | `radius_km` | int | 1–50 |
+| `neighborhood` | text | barrio que muestra el mapa; ≤ 60 y sin datos de contacto (CHECK) |
 | `status` | user_status | cuidador nuevo → `pending_review`; dueño → `approved` |
 | `verified` | bool | insignia "Verificado": la pone `admin_set_sitter_approval` al aprobar (aprobar = verificar) |
 | `terms_accepted_at` | timestamptz | se guarda al registrarse |
 
 - **Lee:** el propio usuario · cualquiera los cuidadores `approved` (incluido `anon`) · la contraparte de una reserva · el admin.
-- **Escribe:** el propio usuario, **solo** `full_name`, `avatar_url`, `bio`, `radius_km` (permiso por columna + trigger de respaldo). `role`, `status`, `verified` y `approx_*` no se pueden tocar desde la API.
+- **Escribe:** el propio usuario, **solo** `full_name`, `avatar_url`, `bio`, `radius_km`, `neighborhood` (permiso por columna + trigger de respaldo). `role`, `status`, `verified` y `approx_*` no se pueden tocar desde la API.
 
 ### `profile_private`: datos sensibles
 `id` (PK/FK), `phone` (formato validado), `exact_lat`, `exact_lng`, `address`.
@@ -63,7 +64,7 @@ erDiagram
 
 ### `dogs`
 `id`, `owner_id` → profiles, `name`, `breed`, `size`.
-- **Lee:** el dueño · el cuidador con una reserva `pending` o `accepted` de ese perro.
+- **Lee:** el dueño · el cuidador con cualquier reserva de ese perro (el nombre sale en su historial; las notas siguen aparte, en `dog_notes`).
 - **Escribe:** el dueño (rol `owner`).
 
 ### `dog_notes`: notas médicas y de comportamiento
@@ -94,8 +95,8 @@ Transiciones permitidas (cualquier otra falla):
 **Lee:** las dos partes · el admin únicamente la reserva ligada a un reporte.
 
 ### `reviews`
-`id`, `booking_id` (**único**: una por reserva), `sitter_id`, `owner_id`, `rating` 1–5, `comment`.
-Un trigger exige reserva `completed`, que quien reseña sea el dueño de **esa** reserva, y fija `sitter_id`/`owner_id` desde la reserva (lo que mande el cliente se ignora). Sin edición ni borrado.
+`id`, `booking_id` (**único**: una por reserva), `sitter_id`, `owner_id`, `author_name`, `rating` 1–5, `comment`.
+Un trigger exige reserva `completed`, que quien reseña sea el dueño de **esa** reserva, y fija `sitter_id`/`owner_id` desde la reserva y `author_name` ("Daniela D.", porque el perfil del dueño no es público) (lo que mande el cliente se ignora). Sin edición ni borrado.
 **Lee:** público si el cuidador está `approved` · las partes · el admin.
 
 ### `reports`
