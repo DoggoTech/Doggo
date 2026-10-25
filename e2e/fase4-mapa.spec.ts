@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { enterAsOwner, goToLogin, login, pin, pins, selectService, tab, tiles } from './helpers';
+import { enterAsOwner, goToLogin, login, openApp, pin, pins, selectService, tab, tiles } from './helpers';
 
 test.describe('mapa del dueño', () => {
   test('muestra un pin por cuidador aprobado, con el precio del paseo', async ({ page }) => {
@@ -163,12 +163,81 @@ test.describe('Mi ubicación', () => {
       permissions: ['geolocation'],
     });
 
+    const KENNEDY = { latitude: 4.628, longitude: -74.15 };
+    const CANDELARIA = { latitude: 4.596, longitude: -74.073 };
+    const button = (page: import('@playwright/test').Page, name: string) =>
+      page.getByRole('button', { name, exact: true });
+
     test('centra el mapa, marca al usuario y ordena por cercanía real', async ({ page }) => {
       await enterAsOwner(page);
-      await page.getByRole('button', { name: 'Mi ubicación' }).click();
-      await expect(page.getByText('Distancia desde tu ubicación')).toBeVisible();
+      await button(page, 'Mi ubicación').click();
+      await expect(page.getByText('Distancia desde tu ubicación (en vivo)')).toBeVisible();
       await expect(page.getByLabel('Tu ubicación')).toBeAttached();
       await expect(tiles(page).first()).toHaveAccessibleName(/^Mateo Vargas, Kennedy, a \d+ m/);
+    });
+
+    test('sigue tu ubicación en tiempo real: el punto y el orden se actualizan solos', async ({ page, context }) => {
+      await enterAsOwner(page);
+      await button(page, 'Mi ubicación').click();
+      await expect(button(page, 'Dejar de seguir mi ubicación')).toBeVisible();
+      await expect(tiles(page).first()).toHaveAccessibleName(/^Mateo Vargas/);
+
+      // El usuario "viaja" de Kennedy a La Candelaria, sin tocar nada en la app.
+      await context.setGeolocation(CANDELARIA);
+      await expect(tiles(page).first()).toHaveAccessibleName(/^Felipe Cárdenas, La Candelaria, a \d+ m/, {
+        timeout: 15_000,
+      });
+
+      await context.setGeolocation(KENNEDY);
+      await expect(tiles(page).first()).toHaveAccessibleName(/^Mateo Vargas/, { timeout: 15_000 });
+    });
+
+    test('un segundo toque deja de seguir y vuelve a Bogotá como referencia', async ({ page, context }) => {
+      await enterAsOwner(page);
+      await button(page, 'Mi ubicación').click();
+      await expect(button(page, 'Dejar de seguir mi ubicación')).toBeVisible();
+
+      await button(page, 'Dejar de seguir mi ubicación').click();
+      await expect(button(page, 'Mi ubicación')).toBeVisible();
+      await expect(page.getByLabel('Tu ubicación')).toHaveCount(0);
+      await expect(page.getByText('Distancia desde el centro de Bogotá')).toBeVisible();
+      await expect(tiles(page).first()).toHaveAccessibleName(/^Julián Castro/);
+
+      // Ya no sigue: mover la ubicación no cambia nada.
+      await context.setGeolocation(CANDELARIA);
+      await page.waitForTimeout(1500);
+      await expect(tiles(page).first()).toHaveAccessibleName(/^Julián Castro/);
+    });
+
+    test('al mover el mapa deja de acompañarte y se puede volver a centrar', async ({ page }) => {
+      await enterAsOwner(page);
+      await button(page, 'Mi ubicación').click();
+      await expect(button(page, 'Dejar de seguir mi ubicación')).toBeVisible();
+
+      // Un gesto del usuario (aquí, zoom con la rueda) le quita el control al seguimiento.
+      const vp = page.viewportSize()!;
+      await page.mouse.move(vp.width * 0.4, vp.height * 0.4);
+      await page.mouse.wheel(0, -300);
+
+      await expect(button(page, 'Volver a mi ubicación')).toBeVisible();
+      // Sigue localizado (punto y lista en vivo), solo que el mapa ya no te persigue.
+      await expect(page.getByLabel('Tu ubicación')).toBeAttached();
+      await expect(page.getByText('Distancia desde tu ubicación (en vivo)')).toBeVisible();
+
+      await button(page, 'Volver a mi ubicación').click();
+      await expect(button(page, 'Dejar de seguir mi ubicación')).toBeVisible();
+    });
+
+    test('al salir del mapa se detiene el seguimiento (ahorra batería)', async ({ page }) => {
+      await enterAsOwner(page);
+      await button(page, 'Mi ubicación').click();
+      await expect(button(page, 'Dejar de seguir mi ubicación')).toBeVisible();
+
+      await tab(page, 'Perfil').click();
+      await tab(page, 'Explorar').click();
+      await expect(pins(page).first()).toBeAttached();
+      await expect(button(page, 'Mi ubicación')).toBeVisible();
+      await expect(page.getByLabel('Tu ubicación')).toHaveCount(0);
     });
   });
 
@@ -194,5 +263,52 @@ test.describe('adaptación a la pantalla', () => {
     } else {
       expect(box!.x).toBeGreaterThan(vp.width * 0.6); // a la derecha
     }
+  });
+});
+
+test.describe('mover el mapa con el mouse', () => {
+  // Regresión: forzar la accesibilidad de Flutter ponía una capa de elementos
+  // sobre el canvas y, con el seguimiento de ubicación activo, el arrastre con
+  // mouse no llegaba al mapa. Aquí la accesibilidad está apagada, igual que para
+  // un usuario normal: se navega con teclado y mouse y se compara el dibujo.
+  test.use({ geolocation: { latitude: 4.628, longitude: -74.15 }, permissions: ['geolocation'] });
+
+  test('arrastrar el mapa lo desplaza, también siguiendo tu ubicación', async ({ page }, testInfo) => {
+    test.skip(testInfo.project.name === 'mobile', 'el arrastre con mouse es de escritorio');
+    await openApp(page, '/', { semantics: false });
+    await page.waitForTimeout(3500); // splash
+    await page.keyboard.press('Tab'); // "Saltar"
+    await page.keyboard.press('Enter');
+    await page.waitForTimeout(1500);
+    for (let i = 0; i < 4; i++) await page.keyboard.press('Tab'); // Correo, Contraseña, Entrar, Probar demo
+    await page.keyboard.press('Enter');
+    await page.waitForTimeout(3500); // login + mapa
+
+    await page.mouse.click(838, 666); // botón "Mi ubicación" (escritorio 1280x720)
+    await page.waitForTimeout(1500);
+
+    const area = { x: 100, y: 120, width: 700, height: 500 }; // solo el mapa, sin la lista
+    // Control: sin tocar nada, el dibujo debe estar quieto. Así una diferencia
+    // posterior solo puede venir del arrastre.
+    const settled = async () => {
+      let previous = await page.screenshot({ clip: area });
+      for (let i = 0; i < 10; i++) {
+        await page.waitForTimeout(500);
+        const current = await page.screenshot({ clip: area });
+        if (Buffer.compare(previous, current) === 0) return current;
+        previous = current;
+      }
+      throw new Error('el mapa no se estabiliza antes de arrastrar');
+    };
+    const before = await settled();
+
+    await page.mouse.move(400, 400);
+    await page.mouse.down();
+    await page.mouse.move(500, 470, { steps: 10 });
+    await page.mouse.up();
+    await page.waitForTimeout(800);
+    const after = await page.screenshot({ clip: area });
+
+    expect(Buffer.compare(before, after)).not.toBe(0);
   });
 });

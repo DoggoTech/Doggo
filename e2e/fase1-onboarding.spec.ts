@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { openApp } from './helpers';
+import { enableSemantics, openApp } from './helpers';
 
 const titulo = (page: import('@playwright/test').Page, t: string) =>
   page.getByText(t);
@@ -30,6 +30,7 @@ test('al volver a abrir la app va directo al login', async ({ page }) => {
   await expect(titulo(page, 'Iniciar sesión')).toBeVisible();
 
   await page.reload();
+  await enableSemantics(page); // al recargar, la accesibilidad vuelve a estar apagada
   await expect(titulo(page, 'Iniciar sesión')).toBeVisible({ timeout: 15_000 });
   await expect(titulo(page, 'Encuentra cuidadores cerca')).toHaveCount(0);
 });

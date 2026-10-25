@@ -15,11 +15,28 @@ async function mockExternalImages(page: Page) {
   await page.route(/i\.pravatar\.cc/, (route) => route.fulfill({ status: 404 }));
 }
 
-/** Abre la app y espera a que Flutter exponga el árbol de accesibilidad. */
-export async function openApp(page: Page, path = '/') {
+/**
+ * Abre la app. Por defecto activa la accesibilidad de Flutter pulsando su botón
+ * nativo (como hace un lector de pantalla) para poder localizar elementos por
+ * etiqueta. Con `semantics: false` queda el canvas "puro", igual que para un
+ * usuario normal con mouse.
+ */
+export async function openApp(page: Page, path = '/', { semantics = true } = {}) {
   await mockExternalImages(page);
   await page.goto(path);
   await expect(page.locator('flutter-view')).toBeAttached({ timeout: 20_000 });
+  if (semantics) await enableSemantics(page);
+}
+
+export async function enableSemantics(page: Page) {
+  // Flutter muestra su botón nativo de accesibilidad; si la app ya la tuviera
+  // activa por defecto, ese botón no existe y no hay nada que pulsar.
+  const entry = page.locator('flt-semantics-placeholder, flt-semantics').first();
+  await entry.waitFor({ state: 'attached', timeout: 20_000 });
+  if ((await entry.evaluate((el) => el.tagName)).toLowerCase() === 'flt-semantics-placeholder') {
+    await entry.evaluate((el) => (el as HTMLElement).click());
+  }
+  await expect(page.locator('flt-semantics').first()).toBeAttached({ timeout: 10_000 });
 }
 
 /** Salta splash y onboarding y deja la app en la pantalla de login. */

@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:latlong2/latlong.dart';
@@ -55,13 +57,30 @@ class MapFiltersNotifier extends Notifier<MapFilters> {
 final mapFiltersProvider =
     NotifierProvider<MapFiltersNotifier, MapFilters>(MapFiltersNotifier.new);
 
-/// Ubicación real del usuario, o `null` si no la dio (se usa Bogotá centro).
-class UserLocationNotifier extends Notifier<LatLng?> {
-  @override
-  LatLng? build() => null;
+class LocationState {
+  const LocationState({this.point, this.tracking = false});
 
-  /// Pide la ubicación. Devuelve `false` si no hay permiso o falla.
-  Future<bool> locate() async {
+  /// Última posición conocida; `null` si no hay (se usa Bogotá centro).
+  final LatLng? point;
+
+  /// Si se está siguiendo la posición en tiempo real.
+  final bool tracking;
+}
+
+/// Ubicación del usuario en tiempo real. Es `autoDispose`: al salir del mapa se
+/// cancela el seguimiento, para no gastar batería con la pantalla fuera de uso.
+class LocationNotifier extends Notifier<LocationState> {
+  StreamSubscription<Position>? _subscription;
+
+  @override
+  LocationState build() {
+    ref.onDispose(() => _subscription?.cancel());
+    return const LocationState();
+  }
+
+  /// Pide permiso, toma la posición actual y empieza a seguirla.
+  /// Devuelve `false` si no hay permiso o falla.
+  Future<bool> start() async {
     try {
       var permission = await Geolocator.checkPermission();
       if (permission == LocationPermission.denied) {
@@ -71,22 +90,63 @@ class UserLocationNotifier extends Notifier<LatLng?> {
           permission == LocationPermission.deniedForever) {
         return false;
       }
-      final position = await Geolocator.getCurrentPosition(
+      final first = await Geolocator.getCurrentPosition(
         locationSettings: const LocationSettings(
           accuracy: LocationAccuracy.high,
           timeLimit: Duration(seconds: 8),
         ),
       );
-      state = LatLng(position.latitude, position.longitude);
+      await _subscription?.cancel();
+      state = LocationState(point: _toLatLng(first), tracking: true);
+      _subscription = Geolocator.getPositionStream(
+        locationSettings: const LocationSettings(
+          accuracy: LocationAccuracy.high,
+          distanceFilter: 5,
+        ),
+      ).listen(
+        (p) => state = LocationState(point: _toLatLng(p), tracking: true),
+        // Los errores pasajeros (señal débil, un timeout) son normales en un
+        // celular en movimiento: se conserva la última posición y se sigue
+        // escuchando. Solo se apaga si ya no hay permiso o servicio.
+        onError: (Object e) {
+          if (e is PermissionDeniedException || e is LocationServiceDisabledException) {
+            stop();
+          }
+        },
+      );
       return true;
     } catch (_) {
       return false;
     }
   }
+
+  /// Deja de seguir: el punto desaparece y la referencia vuelve a Bogotá.
+  void stop() {
+    _subscription?.cancel();
+    _subscription = null;
+    state = const LocationState();
+  }
+
+  LatLng _toLatLng(Position p) => LatLng(p.latitude, p.longitude);
 }
 
+final locationProvider =
+    NotifierProvider.autoDispose<LocationNotifier, LocationState>(LocationNotifier.new);
+
+/// Posición del usuario (o `null`), para quien solo necesita el punto.
 final userLocationProvider =
-    NotifierProvider<UserLocationNotifier, LatLng?>(UserLocationNotifier.new);
+    Provider.autoDispose<LatLng?>((ref) => ref.watch(locationProvider).point);
+
+/// ¿El mapa acompaña al usuario mientras se mueve? Se apaga al arrastrar el mapa.
+class FollowingNotifier extends Notifier<bool> {
+  @override
+  bool build() => false;
+
+  void set(bool value) => state = value;
+}
+
+final followingProvider =
+    NotifierProvider.autoDispose<FollowingNotifier, bool>(FollowingNotifier.new);
 
 class SelectedSitterNotifier extends Notifier<String?> {
   @override
@@ -109,7 +169,7 @@ class SitterView {
 }
 
 /// Cuidadores que pasan los filtros, del más cercano al más lejano.
-final visibleSittersProvider = Provider<AsyncValue<List<SitterView>>>((ref) {
+final visibleSittersProvider = Provider.autoDispose<AsyncValue<List<SitterView>>>((ref) {
   final filters = ref.watch(mapFiltersProvider);
   final origin = ref.watch(userLocationProvider) ?? bogotaCenter;
   return ref.watch(sittersProvider).whenData((all) {

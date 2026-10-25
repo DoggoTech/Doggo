@@ -99,7 +99,7 @@ class SitterList extends ConsumerWidget {
     final visible = ref.watch(visibleSittersProvider);
     final filters = ref.watch(mapFiltersProvider);
     final selectedId = ref.watch(selectedSitterIdProvider);
-    final hasLocation = ref.watch(userLocationProvider) != null;
+    final location = ref.watch(locationProvider);
     final theme = Theme.of(context);
 
     Widget header(int? count) => Padding(
@@ -131,9 +131,11 @@ class SitterList extends ConsumerWidget {
                 ),
               ),
               Text(
-                hasLocation
-                    ? 'Distancia desde tu ubicación'
-                    : 'Distancia desde el centro de Bogotá',
+                location.tracking
+                    ? 'Distancia desde tu ubicación (en vivo)'
+                    : location.point != null
+                        ? 'Distancia desde tu ubicación'
+                        : 'Distancia desde el centro de Bogotá',
                 style: theme.textTheme.bodySmall?.copyWith(color: AppColors.muted),
               ),
             ],

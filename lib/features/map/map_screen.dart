@@ -51,11 +51,30 @@ class _MapScreenState extends ConsumerState<MapScreen> {
     }
   }
 
-  Future<void> _locate() async {
-    final ok = await ref.read(userLocationProvider.notifier).locate();
+  /// Botón "Mi ubicación", en tres estados:
+  /// apagado → empieza a seguirte; siguiéndote → deja de seguir;
+  /// siguiéndote pero moviste el mapa → vuelve a centrarse en ti.
+  Future<void> _onLocationButton() async {
+    final location = ref.read(locationProvider);
+    final following = ref.read(followingProvider);
+    final notifier = ref.read(locationProvider.notifier);
+
+    if (location.tracking && following) {
+      notifier.stop();
+      ref.read(followingProvider.notifier).set(false);
+      return;
+    }
+    if (location.tracking && location.point != null) {
+      ref.read(followingProvider.notifier).set(true);
+      _map.move(location.point!, math.max(_map.camera.zoom, 15));
+      return;
+    }
+
+    final ok = await notifier.start();
     if (!mounted) return;
     if (ok) {
-      _map.move(ref.read(userLocationProvider)!, 14);
+      ref.read(followingProvider.notifier).set(true);
+      _map.move(ref.read(locationProvider).point!, 15);
     } else {
       _map.move(bogotaCenter, 11.5);
       ScaffoldMessenger.of(context)
@@ -68,15 +87,24 @@ class _MapScreenState extends ConsumerState<MapScreen> {
     }
   }
 
+  /// El mapa se mueve con el usuario mientras no lo haya arrastrado.
+  void _onLocationChanged(LocationState? previous, LocationState next) {
+    if (next.point == null || !next.tracking) return;
+    if (previous?.point == next.point) return;
+    if (!ref.read(followingProvider)) return;
+    _map.move(next.point!, _map.camera.zoom);
+  }
+
   @override
   Widget build(BuildContext context) {
+    ref.listen(locationProvider, _onLocationChanged);
     return LayoutBuilder(
       builder: (context, constraints) {
         final wide = constraints.maxWidth >= _widePanelBreakpoint;
         if (wide) {
           return Row(
             children: [
-              Expanded(child: _MapArea(map: _map, onFocus: _focus, onLocate: _locate)),
+              Expanded(child: _MapArea(map: _map, onFocus: _focus, onLocate: _onLocationButton)),
               Container(
                 width: 400,
                 decoration: const BoxDecoration(
@@ -94,7 +122,7 @@ class _MapScreenState extends ConsumerState<MapScreen> {
             // atribución de OpenStreetMap nunca quedan tapados.
             Positioned.fill(
               bottom: constraints.maxHeight * _sheetMin,
-              child: _MapArea(map: _map, onFocus: _focus, onLocate: _locate),
+              child: _MapArea(map: _map, onFocus: _focus, onLocate: _onLocationButton),
             ),
             DraggableScrollableSheet(
               controller: _sheet,
@@ -168,6 +196,12 @@ class _MapArea extends ConsumerWidget {
                 flags: InteractiveFlag.all & ~InteractiveFlag.rotate,
               ),
               onTap: (_, _) => ref.read(selectedSitterIdProvider.notifier).select(null),
+              onPositionChanged: (_, hasGesture) {
+                // Arrastrar o hacer zoom con el dedo/mouse deja de seguirte.
+                if (hasGesture && ref.read(followingProvider)) {
+                  ref.read(followingProvider.notifier).set(false);
+                }
+              },
             ),
             children: [
               TileLayer(
@@ -248,27 +282,62 @@ class _MapArea extends ConsumerWidget {
         Positioned(
           right: 16,
           bottom: 28,
-          child: Semantics(
-            button: true,
-            label: 'Mi ubicación',
-            onTap: onLocate,
-            excludeSemantics: true,
-            child: Material(
-              color: Colors.white,
-              elevation: 4,
-              shape: const CircleBorder(),
-              child: InkWell(
-                onTap: onLocate,
-                customBorder: const CircleBorder(),
-                child: const Padding(
-                  padding: EdgeInsets.all(14),
-                  child: Icon(Icons.my_location_rounded, color: AppColors.primary),
-                ),
-              ),
-            ),
-          ),
+          child: _LocationButton(onPressed: onLocate),
         ),
       ],
+    );
+  }
+}
+
+class _LocationButton extends ConsumerWidget {
+  const _LocationButton({required this.onPressed});
+
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final tracking = ref.watch(locationProvider).tracking;
+    final following = ref.watch(followingProvider);
+
+    final String label;
+    final IconData icon;
+    final Color background;
+    final Color foreground;
+    if (tracking && following) {
+      label = 'Dejar de seguir mi ubicación';
+      icon = Icons.my_location_rounded;
+      background = AppColors.primary;
+      foreground = Colors.white;
+    } else if (tracking) {
+      label = 'Volver a mi ubicación';
+      icon = Icons.my_location_rounded;
+      background = Colors.white;
+      foreground = AppColors.primary;
+    } else {
+      label = 'Mi ubicación';
+      icon = Icons.location_searching_rounded;
+      background = Colors.white;
+      foreground = AppColors.primary;
+    }
+
+    return Semantics(
+      button: true,
+      label: label,
+      onTap: onPressed,
+      excludeSemantics: true,
+      child: Material(
+        color: background,
+        elevation: 4,
+        shape: const CircleBorder(),
+        child: InkWell(
+          onTap: onPressed,
+          customBorder: const CircleBorder(),
+          child: Padding(
+            padding: const EdgeInsets.all(14),
+            child: Icon(icon, color: foreground),
+          ),
+        ),
+      ),
     );
   }
 }
