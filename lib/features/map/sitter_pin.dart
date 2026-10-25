@@ -44,7 +44,11 @@ class SitterPin extends StatelessWidget {
                 borderRadius: BorderRadius.circular(18),
                 border: Border.all(color: Colors.white, width: 2),
                 boxShadow: const [
-                  BoxShadow(color: Color(0x40000000), blurRadius: 8, offset: Offset(0, 3)),
+                  BoxShadow(
+                    color: Color(0x40000000),
+                    blurRadius: 8,
+                    offset: Offset(0, 3),
+                  ),
                 ],
               ),
               child: Text(

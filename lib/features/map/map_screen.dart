@@ -3,6 +3,7 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:latlong2/latlong.dart';
 
 import '../../core/format.dart';
@@ -37,6 +38,11 @@ class _MapScreenState extends ConsumerState<MapScreen> {
     _map.dispose();
     _sheet.dispose();
     super.dispose();
+  }
+
+  void _open(SitterSummary s) {
+    ref.read(selectedSitterIdProvider.notifier).select(s.id);
+    context.push('/sitter/${s.id}');
   }
 
   void _focus(SitterSummary s) {
@@ -81,7 +87,9 @@ class _MapScreenState extends ConsumerState<MapScreen> {
         ..hideCurrentSnackBar()
         ..showSnackBar(
           const SnackBar(
-            content: Text('No pudimos obtener tu ubicación. Te mostramos Bogotá.'),
+            content: Text(
+              'No pudimos obtener tu ubicación. Te mostramos Bogotá.',
+            ),
           ),
         );
     }
@@ -104,14 +112,20 @@ class _MapScreenState extends ConsumerState<MapScreen> {
         if (wide) {
           return Row(
             children: [
-              Expanded(child: _MapArea(map: _map, onFocus: _focus, onLocate: _onLocationButton)),
+              Expanded(
+                child: _MapArea(
+                  map: _map,
+                  onFocus: _focus,
+                  onLocate: _onLocationButton,
+                ),
+              ),
               Container(
                 width: 400,
                 decoration: const BoxDecoration(
                   color: AppColors.background,
                   border: Border(left: BorderSide(color: Color(0x1A2B1D12))),
                 ),
-                child: SitterList(onFocus: _focus),
+                child: SitterList(onOpen: _open),
               ),
             ],
           );
@@ -122,7 +136,11 @@ class _MapScreenState extends ConsumerState<MapScreen> {
             // atribución de OpenStreetMap nunca quedan tapados.
             Positioned.fill(
               bottom: constraints.maxHeight * _sheetMin,
-              child: _MapArea(map: _map, onFocus: _focus, onLocate: _onLocationButton),
+              child: _MapArea(
+                map: _map,
+                onFocus: _focus,
+                onLocate: _onLocationButton,
+              ),
             ),
             DraggableScrollableSheet(
               controller: _sheet,
@@ -136,13 +154,17 @@ class _MapScreenState extends ConsumerState<MapScreen> {
                   color: AppColors.background,
                   borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
                   boxShadow: [
-                    BoxShadow(color: Color(0x332B1D12), blurRadius: 20, offset: Offset(0, -4)),
+                    BoxShadow(
+                      color: Color(0x332B1D12),
+                      blurRadius: 20,
+                      offset: Offset(0, -4),
+                    ),
                   ],
                 ),
                 child: SitterList(
                   controller: scrollController,
                   showHandle: true,
-                  onFocus: _focus,
+                  onOpen: _open,
                 ),
               ),
             ),
@@ -154,7 +176,11 @@ class _MapScreenState extends ConsumerState<MapScreen> {
 }
 
 class _MapArea extends ConsumerWidget {
-  const _MapArea({required this.map, required this.onFocus, required this.onLocate});
+  const _MapArea({
+    required this.map,
+    required this.onFocus,
+    required this.onLocate,
+  });
 
   final MapController map;
   final void Function(SitterSummary) onFocus;
@@ -162,7 +188,8 @@ class _MapArea extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final visible = ref.watch(visibleSittersProvider).value ?? const <SitterView>[];
+    final visible =
+        ref.watch(visibleSittersProvider).value ?? const <SitterView>[];
     final filters = ref.watch(mapFiltersProvider);
     final selectedId = ref.watch(selectedSitterIdProvider);
     final userLocation = ref.watch(userLocationProvider);
@@ -186,7 +213,10 @@ class _MapArea extends ConsumerWidget {
             options: MapOptions(
               // Encuadra la zona donde están los cuidadores de Bogotá.
               initialCameraFit: CameraFit.bounds(
-                bounds: LatLngBounds(const LatLng(4.585, -74.16), const LatLng(4.745, -74.03)),
+                bounds: LatLngBounds(
+                  const LatLng(4.585, -74.16),
+                  const LatLng(4.745, -74.03),
+                ),
                 padding: const EdgeInsets.fromLTRB(40, 100, 40, 60),
               ),
               minZoom: 9,
@@ -195,7 +225,8 @@ class _MapArea extends ConsumerWidget {
               interactionOptions: const InteractionOptions(
                 flags: InteractiveFlag.all & ~InteractiveFlag.rotate,
               ),
-              onTap: (_, _) => ref.read(selectedSitterIdProvider.notifier).select(null),
+              onTap: (_, _) =>
+                  ref.read(selectedSitterIdProvider.notifier).select(null),
               onPositionChanged: (_, hasGesture) {
                 // Arrastrar o hacer zoom con el dedo/mouse deja de seguirte.
                 if (hasGesture && ref.read(followingProvider)) {
@@ -225,7 +256,10 @@ class _MapArea extends ConsumerWidget {
                             shape: BoxShape.circle,
                             border: Border.all(color: Colors.white, width: 3),
                             boxShadow: const [
-                              BoxShadow(color: Color(0x55000000), blurRadius: 6),
+                              BoxShadow(
+                                color: Color(0x55000000),
+                                blurRadius: 6,
+                              ),
                             ],
                           ),
                         ),
@@ -270,8 +304,11 @@ class _MapArea extends ConsumerWidget {
                             key: ValueKey(selected.sitter.id),
                             view: selected,
                             service: filters.service,
-                            onClose: () =>
-                                ref.read(selectedSitterIdProvider.notifier).select(null),
+                            onOpen: () =>
+                                context.push('/sitter/${selected!.sitter.id}'),
+                            onClose: () => ref
+                                .read(selectedSitterIdProvider.notifier)
+                                .select(null),
                           ),
                   ),
                 ],
@@ -374,7 +411,8 @@ class _FilterBar extends ConsumerWidget {
             Pill(
               label: type.label,
               selected: filters.service == type,
-              onTap: () => notifier.setService(filters.service == type ? null : type),
+              onTap: () =>
+                  notifier.setService(filters.service == type ? null : type),
             ),
           ],
         ],
@@ -389,11 +427,13 @@ class _SelectedCard extends StatelessWidget {
     required this.view,
     required this.service,
     required this.onClose,
+    required this.onOpen,
   });
 
   final SitterView view;
   final ServiceType? service;
   final VoidCallback onClose;
+  final VoidCallback onOpen;
 
   @override
   Widget build(BuildContext context) {
@@ -408,52 +448,76 @@ class _SelectedCard extends StatelessWidget {
         borderRadius: BorderRadius.circular(AppTheme.radius),
         boxShadow: AppTheme.softShadow,
       ),
-      child: Row(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.end,
         children: [
-          SitterAvatar(sitter: s, radius: 24),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
+          Row(
+            children: [
+              SitterAvatar(sitter: s, radius: 24),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Flexible(
-                      child: Text(
-                        s.name,
-                        overflow: TextOverflow.ellipsis,
-                        style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800),
+                    Row(
+                      children: [
+                        Flexible(
+                          child: Text(
+                            s.name,
+                            overflow: TextOverflow.ellipsis,
+                            style: theme.textTheme.titleMedium?.copyWith(
+                              fontWeight: FontWeight.w800,
+                            ),
+                          ),
+                        ),
+                        if (s.verified) ...[
+                          const SizedBox(width: 4),
+                          const VerifiedBadge(size: 16),
+                        ],
+                      ],
+                    ),
+                    RatingText(s),
+                    Text(
+                      '${s.neighborhood} · a ${formatKm(view.distanceKm)}',
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: AppColors.muted,
                       ),
                     ),
-                    if (s.verified) ...[
-                      const SizedBox(width: 4),
-                      const VerifiedBadge(size: 16),
-                    ],
                   ],
                 ),
-                RatingText(s),
-                Text(
-                  '${s.neighborhood} · a ${formatKm(view.distanceKm)}',
-                  style: theme.textTheme.bodySmall?.copyWith(color: AppColors.muted),
-                ),
-              ],
-            ),
-          ),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.end,
-            children: [
-              Text(
-                formatCop(s.pinPrice(service)),
-                style: theme.textTheme.titleMedium
-                    ?.copyWith(fontWeight: FontWeight.w900, color: AppColors.primary),
               ),
-              Text(shown.unit, style: theme.textTheme.bodySmall?.copyWith(color: AppColors.muted)),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  Text(
+                    formatCop(s.pinPrice(service)),
+                    style: theme.textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.w900,
+                      color: AppColors.primary,
+                    ),
+                  ),
+                  Text(
+                    shown.unit,
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: AppColors.muted,
+                    ),
+                  ),
+                ],
+              ),
+              IconButton(
+                tooltip: 'Cerrar',
+                onPressed: onClose,
+                icon: const Icon(Icons.close_rounded),
+              ),
             ],
           ),
-          IconButton(
-            tooltip: 'Cerrar',
-            onPressed: onClose,
-            icon: const Icon(Icons.close_rounded),
+          Padding(
+            padding: const EdgeInsets.only(right: 8, top: 4),
+            child: FilledButton(
+              onPressed: onOpen,
+              style: FilledButton.styleFrom(minimumSize: const Size(0, 40)),
+              child: const Text('Ver perfil'),
+            ),
           ),
         ],
       ),

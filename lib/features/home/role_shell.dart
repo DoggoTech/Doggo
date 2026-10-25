@@ -10,7 +10,13 @@ import '../profile/profile_screen.dart';
 const wideBreakpoint = 840.0;
 
 class _Tab {
-  const _Tab(this.label, this.icon, this.soon, {this.builder, this.fullBleed = false});
+  const _Tab(
+    this.label,
+    this.icon,
+    this.soon, {
+    this.builder,
+    this.fullBleed = false,
+  });
   final String label;
   final IconData icon;
   final String soon;
@@ -40,13 +46,21 @@ const _tabsByRole = {
     _profileTab,
   ],
   UserRole.admin: [
-    _Tab('Aprobaciones', Icons.verified_user_rounded, 'Cuidadores por aprobar.'),
+    _Tab(
+      'Aprobaciones',
+      Icons.verified_user_rounded,
+      'Cuidadores por aprobar.',
+    ),
     _Tab('Reportes', Icons.flag_rounded, 'Reportes de usuarios.'),
     _Tab('Usuarios', Icons.group_rounded, 'Gestión de usuarios.'),
     _profileTab,
   ],
   UserRole.superadmin: [
-    _Tab('Aprobaciones', Icons.verified_user_rounded, 'Cuidadores por aprobar.'),
+    _Tab(
+      'Aprobaciones',
+      Icons.verified_user_rounded,
+      'Cuidadores por aprobar.',
+    ),
     _Tab('Reportes', Icons.flag_rounded, 'Reportes de usuarios.'),
     _Tab('Usuarios', Icons.group_rounded, 'Gestión de usuarios.'),
     _Tab('Equipo', Icons.shield_rounded, 'Gobierno del equipo de admins.'),
@@ -75,11 +89,16 @@ class _RoleShellState extends State<RoleShell> {
     final Widget body = tab == _profileTab
         ? ProfileScreen(profile: widget.profile)
         : tab.builder != null
-            ? tab.builder!(context)
-            : _ComingSoon(tab: tab);
+        ? tab.builder!(context)
+        : _ComingSoon(tab: tab);
     final content = tab.fullBleed
         ? body
-        : Center(child: ConstrainedBox(constraints: const BoxConstraints(maxWidth: 960), child: body));
+        : Center(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 960),
+              child: body,
+            ),
+          );
 
     // Pantallas anchas (escritorio, tablet horizontal): riel lateral.
     // Pantallas angostas (celular): barra inferior.
@@ -143,7 +162,11 @@ class _ComingSoon extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(tab.icon, size: 56, color: Theme.of(context).colorScheme.primary),
+            Icon(
+              tab.icon,
+              size: 56,
+              color: Theme.of(context).colorScheme.primary,
+            ),
             const SizedBox(height: 16),
             Text(
               tab.soon,

@@ -30,22 +30,24 @@ class _FiltersSheet extends ConsumerWidget {
     final theme = Theme.of(context);
 
     Widget section(String title, List<Widget> pills) => Padding(
-          padding: const EdgeInsets.only(bottom: 20),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Semantics(
-                header: true,
-                child: Text(
-                  title,
-                  style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800),
-                ),
+      padding: const EdgeInsets.only(bottom: 20),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Semantics(
+            header: true,
+            child: Text(
+              title,
+              style: theme.textTheme.titleMedium?.copyWith(
+                fontWeight: FontWeight.w800,
               ),
-              const SizedBox(height: 10),
-              Wrap(spacing: 8, runSpacing: 8, children: pills),
-            ],
+            ),
           ),
-        );
+          const SizedBox(height: 10),
+          Wrap(spacing: 8, runSpacing: 8, children: pills),
+        ],
+      ),
+    );
 
     return SafeArea(
       child: SingleChildScrollView(
@@ -55,14 +57,18 @@ class _FiltersSheet extends ConsumerWidget {
           children: [
             Text(
               'Filtros',
-              style: theme.textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w900),
+              style: theme.textTheme.headlineSmall?.copyWith(
+                fontWeight: FontWeight.w900,
+              ),
             ),
             const SizedBox(height: 16),
             section('Precio máximo', [
               for (final v in _priceOptions)
                 Pill(
                   elevated: false,
-                  label: v == null ? 'Cualquier precio' : 'Hasta ${formatCop(v)}',
+                  label: v == null
+                      ? 'Cualquier precio'
+                      : 'Hasta ${formatCop(v)}',
                   selected: filters.maxPrice == v,
                   onTap: () => notifier.setMaxPrice(v),
                 ),
@@ -80,7 +86,9 @@ class _FiltersSheet extends ConsumerWidget {
               for (final v in _ratingOptions)
                 Pill(
                   elevated: false,
-                  label: v == null ? 'Cualquier calificación' : '${formatRating(v)} o más',
+                  label: v == null
+                      ? 'Cualquier calificación'
+                      : '${formatRating(v)} o más',
                   selected: filters.minRating == v,
                   onTap: () => notifier.setMinRating(v),
                 ),
@@ -105,8 +113,8 @@ class _FiltersSheet extends ConsumerWidget {
                       count == null
                           ? 'Listo'
                           : count == 1
-                              ? 'Ver 1 cuidador'
-                              : 'Ver $count cuidadores',
+                          ? 'Ver 1 cuidador'
+                          : 'Ver $count cuidadores',
                     ),
                   ),
                 ),

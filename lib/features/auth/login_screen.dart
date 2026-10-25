@@ -36,18 +36,19 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   }
 
   Future<void> _signIn() => _run(() async {
-        await ref.read(repositoryProvider).signIn(
-              email: _email.text,
-              password: _password.text,
-            );
-      });
+    await ref
+        .read(repositoryProvider)
+        .signIn(email: _email.text, password: _password.text);
+  });
 
   Future<void> _demo() => _run(() async {
-        await ref.read(repositoryProvider).signIn(
-              email: DemoRepository.demoAccountByRole.values.first,
-              password: demoPassword,
-            );
-      });
+    await ref
+        .read(repositoryProvider)
+        .signIn(
+          email: DemoRepository.demoAccountByRole.values.first,
+          password: demoPassword,
+        );
+  });
 
   @override
   void dispose() {

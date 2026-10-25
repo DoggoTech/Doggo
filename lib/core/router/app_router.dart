@@ -8,6 +8,7 @@ import '../../features/auth/onboarding_screen.dart';
 import '../../features/auth/register_screen.dart';
 import '../../features/auth/splash_screen.dart';
 import '../../features/home/home_screen.dart';
+import '../../features/sitter_profile/sitter_profile_screen.dart';
 
 abstract final class Routes {
   static const splash = '/splash';
@@ -27,10 +28,13 @@ final routerProvider = Provider<GoRouter>((ref) {
     initialLocation: Routes.splash,
     refreshListenable: refresh,
     redirect: (context, state) {
-      final signedIn = ref.read(authStateProvider).value != null;
+      final profile = ref.read(authStateProvider).value;
+      final signedIn = profile != null;
       final path = state.matchedLocation;
       final isGuestRoute = path == Routes.login || path == Routes.register;
-      if (!signedIn && path == Routes.home) return Routes.login;
+      final isPublic =
+          isGuestRoute || path == Routes.splash || path == Routes.onboarding;
+      if (!signedIn && !isPublic) return Routes.login;
       if (signedIn && isGuestRoute) return Routes.home;
       return null;
     },
@@ -54,6 +58,11 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: Routes.home,
         pageBuilder: (context, state) => _fade(state, const HomeScreen()),
+      ),
+      GoRoute(
+        path: '/sitter/:id',
+        builder: (context, state) =>
+            SitterProfileScreen(sitterId: state.pathParameters['id']!),
       ),
     ],
   );

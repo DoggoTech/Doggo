@@ -28,7 +28,9 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
       _error = null;
     });
     try {
-      await ref.read(repositoryProvider).signUp(
+      await ref
+          .read(repositoryProvider)
+          .signUp(
             email: _email.text,
             password: _password.text,
             fullName: _name.text,

@@ -18,3 +18,40 @@ String formatKm(double km) {
 /// 4.9 -> "4,9"
 String formatRating(double rating) =>
     rating.toStringAsFixed(1).replaceAll('.', ',');
+
+const _weekdays = ['lun', 'mar', 'mié', 'jue', 'vie', 'sáb', 'dom'];
+const _months = [
+  'ene',
+  'feb',
+  'mar',
+  'abr',
+  'may',
+  'jun',
+  'jul',
+  'ago',
+  'sep',
+  'oct',
+  'nov',
+  'dic',
+];
+
+/// "sáb 25 oct"
+String formatDay(DateTime d) =>
+    '${_weekdays[d.weekday - 1]} ${d.day} ${_months[d.month - 1]}';
+
+/// "Hoy", "Mañana" o "lun 27 oct".
+String formatDayChip(DateTime day, DateTime today) {
+  final a = DateTime(day.year, day.month, day.day);
+  final b = DateTime(today.year, today.month, today.day);
+  final diff = a.difference(b).inDays;
+  if (diff == 0) return 'Hoy';
+  if (diff == 1) return 'Mañana';
+  return formatDay(day);
+}
+
+/// "9:00"
+String formatTime(DateTime d) =>
+    '${d.hour}:${d.minute.toString().padLeft(2, '0')}';
+
+/// "sáb 25 oct, 9:00"
+String formatDateTime(DateTime d) => '${formatDay(d)}, ${formatTime(d)}';
