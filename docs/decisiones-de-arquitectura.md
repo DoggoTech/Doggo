@@ -37,7 +37,8 @@ original del producto.
 
 ## 3. Producto (decisiones del usuario)
 
-- **Superadmin** entra al MVP (fase 10).
+- **Superadmin** entra al MVP (fase 10): pestaña **Equipo** (nombrar admin por correo exacto, quitar el rol, suspender o reactivar admins, auditoría completa); **Eliminar cuenta** en Usuarios solo para él. El admin ve **Mi historial** al final de Usuarios.
+- **No se elimina ni se asciende** a quien tiene reservas activas: la otra parte perdería la reserva sin aviso.
 - **Reserva en hoja compacta** que sube sobre el perfil, con `−` / `+` para día, hora, duración, días o noches.
 - **Horario semanal** del cuidador; el dueño solo ve horas dentro de él (franja 7:00–19:00, pasos de 30 min).
 - **Contacto** (teléfono y dirección) visible solo con la reserva **aceptada**, en ambos sentidos.
@@ -68,6 +69,6 @@ original del producto.
 ## 6. Pendientes
 
 1. **`SupabaseRepository`** y conectar un proyecto real (verificar el tiempo real entre dos dispositivos en menos de 2 s).
-2. **Fase 10**: superadmin (pestaña Equipo, historial de auditoría).
-3. **Fase 11**: GitHub Pages, PWA, keep-alive, README (incluir: en Mac hay que permitir Localización a Chrome).
-4. **Fase 12**: pulido (agrupar pines solapados, animaciones, estados vacíos).
+2. **Fase 11**: GitHub Pages, PWA, keep-alive, README (incluir: en Mac hay que permitir Localización a Chrome).
+3. **Fase 12**: pulido (agrupar pines solapados, animaciones, estados vacíos).
+4. **Después del MVP**: beneficios para cuidadores con buena calificación (niveles, destacar en el mapa), cuando haya reseñas reales.

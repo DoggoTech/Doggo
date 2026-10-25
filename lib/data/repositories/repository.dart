@@ -184,6 +184,14 @@ abstract class Repository {
   /// Auditoría: el admin ve sus acciones; el superadmin, todas.
   Future<List<AdminAction>> fetchAdminActions();
 
+  /// Solo el superadmin: nombra admin a un usuario o le quita el rol (vuelve
+  /// a dueño). No con reservas activas ni sobre sí mismo.
+  Future<void> setAdmin(String userId, {required bool makeAdmin});
+
+  /// Solo el superadmin: elimina la cuenta para siempre. La auditoría la
+  /// conserva con su nombre. No con reservas activas.
+  Future<void> deleteUser(String userId);
+
   /// Zona de servicio del cuidador. Guarda la ubicación EXACTA en privado y
   /// publica en el mapa una aproximada (200–300 m de diferencia).
   Future<void> saveMyServiceArea({

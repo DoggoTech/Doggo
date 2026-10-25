@@ -859,14 +859,21 @@ $$;
 create function public.superadmin_delete_user(target uuid)
 returns void language plpgsql security definer set search_path = public as $$
 declare
-  t public.user_role;
+  t    public.user_role;
+  name text;
 begin
   if not private.is_superadmin() then raise exception 'forbidden' using errcode = '42501'; end if;
   if target = auth.uid() then raise exception 'cannot_target_self' using errcode = '42501'; end if;
-  select role into t from profiles where id = target;
+  select role, full_name into t, name from profiles where id = target;
   if t is null then raise exception 'user_not_found' using errcode = 'P0002'; end if;
   if t = 'superadmin' then raise exception 'protected_user' using errcode = '42501'; end if;
-  perform private.log_action('delete_user', target, jsonb_build_object('target_role', t));
+  -- La otra parte de una reserva en curso perdería la reserva sin aviso.
+  if private.has_active_bookings(target) then
+    raise exception 'active_bookings' using errcode = '22023';
+  end if;
+  -- El nombre queda en la auditoría: el perfil desaparece con la cuenta.
+  perform private.log_action('delete_user', target,
+          jsonb_build_object('target_role', t, 'target_name', name));
   delete from auth.users where id = target;
 end;
 $$;

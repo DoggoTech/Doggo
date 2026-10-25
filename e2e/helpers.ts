@@ -219,7 +219,9 @@ export async function switchDemo(page: Page, role: 'Dueño' | 'Cuidador' | 'Admi
   const firstTab = { Dueño: 'Explorar', Cuidador: 'Solicitudes', Administrador: 'Aprobaciones', Superadministrador: 'Aprobaciones' }[role];
   await tab(page, 'Perfil').click();
   const demo = btn(page, `Demo: ${role}`);
-  await scrollUntil(page, demo); // el panel demo está al final del perfil
+  // El panel demo está arriba del perfil: si la página quedó desplazada
+  // (p. ej. tras editar la bio), hay que subir, no bajar.
+  await scrollUntil(page, demo, -350);
   await demo.dispatchEvent('click');
   await expect(tab(page, firstTab)).toBeVisible();
   await expect(tab(page, 'Perfil')).toBeVisible();
@@ -241,7 +243,7 @@ export async function bookWithCarlos(page: Page) {
  * construye solo lo visible). Alterna el punto donde gira la rueda: si cae
  * sobre un campo de texto de varias líneas, ese campo se queda con el gesto.
  */
-export async function scrollUntil(page: Page, target: Locator) {
+export async function scrollUntil(page: Page, target: Locator, step = 350) {
   const vp = page.viewportSize()!;
   const spots = [
     [vp.width / 2, vp.height / 2],
@@ -251,7 +253,7 @@ export async function scrollUntil(page: Page, target: Locator) {
   for (let i = 0; i < 18 && (await target.count()) === 0; i++) {
     const [x, y] = spots[i % spots.length];
     await page.mouse.move(x, y);
-    await page.mouse.wheel(0, 350);
+    await page.mouse.wheel(0, step);
     await page.waitForTimeout(150);
   }
   await expect(target.first()).toBeAttached();
