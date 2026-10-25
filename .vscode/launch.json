@@ -1,0 +1,26 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Doggo (Chrome)",
+      "request": "launch",
+      "type": "dart",
+      "deviceId": "chrome",
+      "args": ["--dart-define-from-file=env.json"]
+    },
+    {
+      "name": "Doggo (iOS Simulator)",
+      "request": "launch",
+      "type": "dart",
+      "deviceId": "iPhone",
+      "args": ["--dart-define-from-file=env.json"]
+    },
+    {
+      "name": "Doggo (emulador Android)",
+      "request": "launch",
+      "type": "dart",
+      "deviceId": "emulator",
+      "args": ["--dart-define-from-file=env.json"]
+    }
+  ]
+}

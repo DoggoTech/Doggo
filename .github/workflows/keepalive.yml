@@ -1,0 +1,25 @@
+name: Supabase keep-alive
+
+# El plan gratis de Supabase pausa el proyecto tras 7 días sin actividad.
+on:
+  schedule:
+    - cron: '0 12 */2 * *' # cada 2 días
+  workflow_dispatch:
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping Supabase
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+        run: |
+          if [ -z "$SUPABASE_URL" ]; then
+            echo "Sin SUPABASE_URL: la app aún corre en modo demo, no hay nada que mantener activo."
+            exit 0
+          fi
+          curl -sf "$SUPABASE_URL/rest/v1/sitter_services?select=id&limit=1" \
+            -H "apikey: $SUPABASE_ANON_KEY" \
+            -H "Authorization: Bearer $SUPABASE_ANON_KEY" > /dev/null
+          echo "Supabase respondió."

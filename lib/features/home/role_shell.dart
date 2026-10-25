@@ -162,15 +162,33 @@ class _RoleShellState extends State<RoleShell> {
             ),
           );
         }
+        // Con 5 pestañas (superadmin) "Aprobaciones" no cabe en una línea a
+        // 390 px con el tamaño por defecto: se achica un poco el texto.
+        // Mismos colores que el estilo por defecto de Material 3.
+        final theme = Theme.of(context);
+        final crowded = tabs.length > 4;
+        final labelStyle = WidgetStateProperty.resolveWith(
+          (states) => theme.textTheme.labelMedium?.copyWith(
+            fontSize: crowded ? 11 : null,
+            letterSpacing: crowded ? 0 : null,
+            color: states.contains(WidgetState.selected)
+                ? theme.colorScheme.onSurface
+                : theme.colorScheme.onSurfaceVariant,
+          ),
+        );
         return Scaffold(
           body: SafeArea(child: content),
-          bottomNavigationBar: NavigationBar(
-            selectedIndex: index,
-            onDestinationSelected: (i) => setState(() => _index = i),
-            destinations: [
-              for (final t in tabs)
-                NavigationDestination(icon: Icon(t.icon), label: t.label),
-            ],
+          bottomNavigationBar: NavigationBarTheme(
+            data: NavigationBarTheme.of(context)
+                .copyWith(labelTextStyle: labelStyle),
+            child: NavigationBar(
+              selectedIndex: index,
+              onDestinationSelected: (i) => setState(() => _index = i),
+              destinations: [
+                for (final t in tabs)
+                  NavigationDestination(icon: Icon(t.icon), label: t.label),
+              ],
+            ),
           ),
         );
       },
