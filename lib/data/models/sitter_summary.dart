@@ -46,6 +46,7 @@ class SitterSummary {
     double? ratingAvg,
     int? ratingCount,
     String? bio,
+    bool? verified,
   }) {
     return SitterSummary(
       id: id,
@@ -56,7 +57,7 @@ class SitterSummary {
       radiusKm: radiusKm,
       services: services ?? this.services,
       avatarUrl: avatarUrl,
-      verified: verified,
+      verified: verified ?? this.verified,
       ratingAvg: ratingAvg ?? this.ratingAvg,
       ratingCount: ratingCount ?? this.ratingCount,
       availability: availability ?? this.availability,

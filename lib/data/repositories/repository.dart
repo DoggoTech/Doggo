@@ -1,3 +1,4 @@
+import '../models/admin.dart';
 import '../models/availability.dart';
 import '../models/booking.dart';
 import '../models/contact_info.dart';
@@ -145,4 +146,39 @@ abstract class Repository {
 
   /// Bio pública del cuidador (máx. 600, sin teléfonos, correos ni enlaces).
   Future<void> saveMyBio(String bio);
+
+  // ---- Administración (solo admin y superadmin; la base lo valida en las RPC) ----
+
+  /// Cuidadores en `pending_review` con su perfil completo.
+  Future<List<PendingSitter>> fetchPendingSitters();
+
+  /// Aprobar (aparece en el mapa) o rechazar (queda suspendido).
+  Future<void> setSitterApproval(String userId, {required bool approve});
+
+  /// Insignia "Verificado" de un cuidador.
+  Future<void> setVerified(String userId, bool verified);
+
+  /// Reportes, del más reciente al más antiguo.
+  Future<List<Report>> fetchReports();
+
+  /// Marca un reporte como revisado o descartado; opcionalmente suspende al reportado.
+  Future<void> resolveReport(
+    String reportId,
+    ReportStatus resolution, {
+    bool suspendReported = false,
+  });
+
+  /// Búsqueda por nombre o correo, con filtros de rol y estado.
+  Future<List<AdminUserRow>> searchUsers({
+    String query = '',
+    UserRole? role,
+    UserStatus? status,
+  });
+
+  /// Suspender o reactivar. Un admin no puede tocar a otro admin ni al
+  /// superadmin; nadie puede modificarse a sí mismo.
+  Future<void> setUserSuspended(String userId, bool suspended);
+
+  /// Auditoría: el admin ve sus acciones; el superadmin, todas.
+  Future<List<AdminAction>> fetchAdminActions();
 }

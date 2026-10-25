@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:latlong2/latlong.dart';
 
+import '../models/admin.dart';
 import '../models/availability.dart';
 import '../contact_filter.dart';
 import '../models/booking.dart';
@@ -24,6 +25,27 @@ class DemoRepository implements Repository {
   DemoRepository({DateTime Function()? clock}) : _now = clock ?? DateTime.now {
     for (final p in _seedProfiles) {
       _users[p.email] = _DemoUser(p, demoPassword);
+    }
+    // Cuidadores de ejemplo (supabase/seed.sql): tienen perfil para que el admin
+    // los busque, apruebe o suspenda, pero sin contraseña: nadie entra con ellos.
+    for (final s in [..._demoSitters, ..._demoPendingSitters]) {
+      final email = _seedEmails[s.id];
+      if (email == null) continue;
+      final pending = _demoPendingSitters.contains(s);
+      _users[email] = _DemoUser(
+        Profile(
+          id: s.id,
+          email: email,
+          fullName: s.name,
+          role: UserRole.sitter,
+          status: pending ? UserStatus.pendingReview : UserStatus.approved,
+          verified: s.verified,
+          bio: s.bio,
+          termsAcceptedAt: DateTime(2026, 1, 1),
+        ),
+        null,
+      );
+      if (pending) _pendingSitters[s.id] = s;
     }
     // Las solicitudes sin respuesta vencen solas al pasar su plazo.
     Timer.periodic(const Duration(seconds: 15), (_) => _expireOverdue());
@@ -150,7 +172,7 @@ class DemoRepository implements Repository {
   }) async {
     await _latency();
     final user = _users[email.trim().toLowerCase()];
-    if (user == null || user.password != password) {
+    if (user == null || user.password == null || user.password != password) {
       throw const AuthFailure('Correo o contraseña incorrectos.');
     }
     if (user.profile.status == UserStatus.suspended) {
@@ -238,14 +260,14 @@ class DemoRepository implements Repository {
   @override
   Future<List<SitterSummary>> fetchSitters() async {
     await _latency();
-    return List.unmodifiable(_sitters);
+    return _sitters.where(_isVisible).toList();
   }
 
   @override
   Future<SitterSummary?> fetchSitter(String id) async {
     await _latency();
     for (final s in _sitters) {
-      if (s.id == id) return s;
+      if (s.id == id && _isVisible(s)) return s;
     }
     return null;
   }
@@ -391,7 +413,7 @@ class DemoRepository implements Repository {
     }
     SitterSummary? sitter;
     for (final s in _sitters) {
-      if (s.id == sitterId) sitter = s;
+      if (s.id == sitterId && _isVisible(s)) sitter = s;
     }
     if (sitter == null || sitter.id == me.id) {
       throw const ValidationFailure('Este cuidador no está disponible.');
@@ -743,6 +765,248 @@ class DemoRepository implements Repository {
     _setCurrent(me.copyWith(bio: text));
   }
 
+  // ---------------------------------------------------------------------------
+  // Administración
+  // ---------------------------------------------------------------------------
+
+  final _adminActions = <AdminAction>[];
+
+  _DemoUser? _userById(String id) {
+    for (final u in _users.values) {
+      if (u.profile.id == id) return u;
+    }
+    return null;
+  }
+
+  /// En el mapa solo aparecen cuidadores aprobados (ni en revisión ni
+  /// suspendidos) con al menos un servicio.
+  bool _isVisible(SitterSummary s) {
+    final status = _userById(s.id)?.profile.status ?? UserStatus.approved;
+    return status == UserStatus.approved && s.services.isNotEmpty;
+  }
+
+  AdminUserRow _row(Profile p) => AdminUserRow(
+    id: p.id,
+    name: p.fullName,
+    email: p.email,
+    role: p.role,
+    status: p.status,
+    verified: p.verified,
+  );
+
+  Profile _requireAdmin() {
+    final me = _current;
+    if (me == null || !me.role.isAdmin || me.status != UserStatus.approved) {
+      throw const ValidationFailure('Solo un administrador puede hacer esto.');
+    }
+    return me;
+  }
+
+  /// Reglas de protección entre roles (las mismas que `assert_can_moderate`).
+  Profile _assertCanModerate(String targetId) {
+    final me = _requireAdmin();
+    if (targetId == me.id) {
+      throw const ValidationFailure('No puedes modificar tu propia cuenta.');
+    }
+    final target = _userById(targetId)?.profile;
+    if (target == null) throw const ValidationFailure('Ese usuario no existe.');
+    if (target.role == UserRole.superadmin) {
+      throw const ValidationFailure('El superadministrador está protegido.');
+    }
+    if (target.role == UserRole.admin && me.role != UserRole.superadmin) {
+      throw const ValidationFailure(
+        'Solo el superadministrador puede modificar a otro administrador.',
+      );
+    }
+    return target;
+  }
+
+  void _updateProfile(Profile updated) {
+    final u = _users[updated.email]!;
+    _users[updated.email] = u.withProfile(updated);
+    if (_current?.id == updated.id) _current = updated;
+  }
+
+  void _log(String action, Profile target, {String? details}) {
+    final me = _current!;
+    _adminActions.add(
+      AdminAction(
+        adminId: me.id,
+        adminName: me.fullName,
+        action: action,
+        targetUserId: target.id,
+        targetName: target.fullName,
+        details: details,
+        createdAt: _now(),
+      ),
+    );
+  }
+
+  /// Perfil de cuidador (servicios, ubicación…) de cualquier usuario sitter.
+  SitterSummary _sitterOf(Profile p) {
+    for (final s in _sitters) {
+      if (s.id == p.id) return s;
+    }
+    return _pendingSitters.putIfAbsent(
+      p.id,
+      () => SitterSummary(
+        id: p.id,
+        name: p.fullName,
+        neighborhood: 'Bogotá',
+        bio: p.bio ?? '',
+        location: const LatLng(4.6533, -74.0836),
+        radiusKm: 5,
+        services: const {},
+      ),
+    );
+  }
+
+  @override
+  Future<List<PendingSitter>> fetchPendingSitters() async {
+    await _latency();
+    _requireAdmin();
+    return [
+      for (final u in _users.values)
+        if (u.profile.role == UserRole.sitter &&
+            u.profile.status == UserStatus.pendingReview)
+          PendingSitter(user: _row(u.profile), sitter: _sitterOf(u.profile)),
+    ];
+  }
+
+  @override
+  Future<void> setSitterApproval(String userId, {required bool approve}) async {
+    await _latency();
+    final target = _assertCanModerate(userId);
+    if (target.role != UserRole.sitter) {
+      throw const ValidationFailure('Ese usuario no es cuidador.');
+    }
+    if (target.status != UserStatus.pendingReview) {
+      throw const ValidationFailure('Ese cuidador ya no está en revisión.');
+    }
+    _updateProfile(
+      target.copyWith(
+        status: approve ? UserStatus.approved : UserStatus.suspended,
+      ),
+    );
+    if (approve) {
+      // Pasa al mapa con lo que haya preparado (servicios, horario, bio).
+      final sitter = _sitterOf(target);
+      _pendingSitters.remove(target.id);
+      _sitters.add(sitter.copyWith(verified: target.verified));
+    }
+    _log(approve ? 'approve_sitter' : 'reject_sitter', target);
+  }
+
+  @override
+  Future<void> setVerified(String userId, bool verified) async {
+    await _latency();
+    final target = _assertCanModerate(userId);
+    if (target.role != UserRole.sitter) {
+      throw const ValidationFailure('Ese usuario no es cuidador.');
+    }
+    _updateProfile(target.copyWith(verified: verified));
+    final i = _sitters.indexWhere((s) => s.id == userId);
+    if (i >= 0) _sitters[i] = _sitters[i].copyWith(verified: verified);
+    if (_pendingSitters.containsKey(userId)) {
+      _pendingSitters[userId] = _pendingSitters[userId]!.copyWith(
+        verified: verified,
+      );
+    }
+    _log(verified ? 'verify_sitter' : 'unverify_sitter', target);
+  }
+
+  @override
+  Future<List<Report>> fetchReports() async {
+    await _latency();
+    _requireAdmin();
+    return [..._reports]..sort((a, b) => b.createdAt.compareTo(a.createdAt));
+  }
+
+  @override
+  Future<void> resolveReport(
+    String reportId,
+    ReportStatus resolution, {
+    bool suspendReported = false,
+  }) async {
+    await _latency();
+    _requireAdmin();
+    if (resolution == ReportStatus.open) {
+      throw const ValidationFailure('Elige revisado o descartado.');
+    }
+    final i = _reports.indexWhere((r) => r.id == reportId);
+    if (i < 0 || _reports[i].status != ReportStatus.open) {
+      throw const ValidationFailure('Ese reporte ya fue atendido.');
+    }
+    final report = _reports[i];
+    Profile? reported = _userById(report.reportedUserId)?.profile;
+    if (suspendReported) {
+      reported = _assertCanModerate(report.reportedUserId);
+      _updateProfile(reported.copyWith(status: UserStatus.suspended));
+    }
+    _reports[i] = Report(
+      id: report.id,
+      reporterId: report.reporterId,
+      reporterName: report.reporterName,
+      reportedUserId: report.reportedUserId,
+      reportedName: report.reportedName,
+      bookingId: report.bookingId,
+      reason: report.reason,
+      comment: report.comment,
+      status: resolution,
+      createdAt: report.createdAt,
+    );
+    if (reported != null) {
+      _log(
+        'resolve_report',
+        reported,
+        details:
+            '${resolution.label}${suspendReported ? ' · cuenta suspendida' : ''}',
+      );
+    }
+  }
+
+  @override
+  Future<List<AdminUserRow>> searchUsers({
+    String query = '',
+    UserRole? role,
+    UserStatus? status,
+  }) async {
+    await _latency();
+    _requireAdmin();
+    final q = query.trim().toLowerCase();
+    return [
+      for (final u in _users.values)
+        if ((q.isEmpty ||
+                u.profile.fullName.toLowerCase().contains(q) ||
+                u.profile.email.toLowerCase().contains(q)) &&
+            (role == null || u.profile.role == role) &&
+            (status == null || u.profile.status == status))
+          _row(u.profile),
+    ]..sort((a, b) => a.name.compareTo(b.name));
+  }
+
+  @override
+  Future<void> setUserSuspended(String userId, bool suspended) async {
+    await _latency();
+    final target = _assertCanModerate(userId);
+    _updateProfile(
+      target.copyWith(
+        status: suspended ? UserStatus.suspended : UserStatus.approved,
+      ),
+    );
+    _log(suspended ? 'suspend_user' : 'reactivate_user', target);
+  }
+
+  @override
+  Future<List<AdminAction>> fetchAdminActions() async {
+    await _latency();
+    final me = _requireAdmin();
+    final list = me.role == UserRole.superadmin
+        ? [..._adminActions]
+        : _adminActions.where((a) => a.adminId == me.id).toList();
+    return list..sort((a, b) => b.createdAt.compareTo(a.createdAt));
+  }
+
   /// El cuidador con sesión (rol sitter, aunque esté en revisión).
   Profile _requireSitter() {
     final me = _current;
@@ -832,7 +1096,9 @@ class DemoRepository implements Repository {
 class _DemoUser {
   const _DemoUser(this.profile, this.password);
   final Profile profile;
-  final String password;
+
+  /// `null` = cuenta de ejemplo sin acceso.
+  final String? password;
 
   _DemoUser withProfile(Profile p) => _DemoUser(p, password);
 }
@@ -1063,3 +1329,44 @@ final _demoReviews = <Review>[
     createdAt: _now.subtract(const Duration(days: 2)),
   ),
 ];
+
+/// Los 2 cuidadores en revisión de `supabase/seed.sql`: el panel de admin
+/// tiene algo que aprobar. Al aprobarlos, aparecen en el mapa.
+const _demoPendingSitters = <SitterSummary>[
+  SitterSummary(
+    id: 'a1000000-0000-4000-8000-000000000011',
+    name: 'Natalia Peña',
+    neighborhood: 'Bosa',
+    bio: 'Recién registrada: ofrezco paseos y guardería en Bosa.',
+    location: LatLng(4.60720, -74.18860),
+    radiusKm: 5,
+    avatarUrl: 'https://i.pravatar.cc/300?img=5',
+    services: {ServiceType.walk: 19000, ServiceType.daycare: 45000},
+  ),
+  SitterSummary(
+    id: 'a1000000-0000-4000-8000-000000000012',
+    name: 'Ricardo Salazar',
+    neighborhood: 'Restrepo',
+    bio: 'Recién registrado: visitas a domicilio en Restrepo.',
+    location: LatLng(4.58720, -74.10170),
+    radiusKm: 4,
+    avatarUrl: 'https://i.pravatar.cc/300?img=8',
+    services: {ServiceType.homeVisit: 28000},
+  ),
+];
+
+/// Correos de los cuidadores de ejemplo (los mismos de `supabase/seed.sql`).
+const _seedEmails = {
+  'a1000000-0000-4000-8000-000000000001': 'seed.laura@doggo.test',
+  'a1000000-0000-4000-8000-000000000002': 'seed.andres@doggo.test',
+  'a1000000-0000-4000-8000-000000000003': 'seed.camila@doggo.test',
+  'a1000000-0000-4000-8000-000000000004': 'seed.julian@doggo.test',
+  'a1000000-0000-4000-8000-000000000005': 'seed.valentina@doggo.test',
+  'a1000000-0000-4000-8000-000000000006': 'seed.mateo@doggo.test',
+  'a1000000-0000-4000-8000-000000000007': 'seed.daniela@doggo.test',
+  'a1000000-0000-4000-8000-000000000008': 'seed.sebastian@doggo.test',
+  'a1000000-0000-4000-8000-000000000009': 'seed.isabela@doggo.test',
+  'a1000000-0000-4000-8000-000000000010': 'seed.felipe@doggo.test',
+  'a1000000-0000-4000-8000-000000000011': 'seed.natalia@doggo.test',
+  'a1000000-0000-4000-8000-000000000012': 'seed.ricardo@doggo.test',
+};

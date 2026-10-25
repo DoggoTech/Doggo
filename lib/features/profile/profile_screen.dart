@@ -35,11 +35,17 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
 
   Future<void> _demoSwitch(UserRole role) async {
     final repo = ref.read(repositoryProvider);
+    final messenger = ScaffoldMessenger.of(context);
     await repo.signOut();
-    await repo.signIn(
-      email: DemoRepository.demoAccountByRole[role]!,
-      password: demoPassword,
-    );
+    try {
+      await repo.signIn(
+        email: DemoRepository.demoAccountByRole[role]!,
+        password: demoPassword,
+      );
+    } on AuthFailure catch (e) {
+      // P. ej. un admin suspendió esa cuenta: queda en el login con el aviso.
+      messenger.showSnackBar(SnackBar(content: Text(e.message)));
+    }
   }
 
   @override
