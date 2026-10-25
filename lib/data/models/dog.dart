@@ -15,6 +15,7 @@ class Dog {
     required this.name,
     required this.size,
     this.breed,
+    this.notes,
   });
 
   final String id;
@@ -22,4 +23,8 @@ class Dog {
   final String name;
   final DogSize size;
   final String? breed;
+
+  /// Notas médicas y de comportamiento. Solo las ve el dueño y el cuidador
+  /// con una reserva `accepted` de este perro.
+  final String? notes;
 }

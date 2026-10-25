@@ -7,9 +7,16 @@ import '../../core/theme/app_colors.dart';
 
 /// "Responde en 1 h 42 min", actualizado cada pocos segundos.
 class ResponseCountdown extends StatefulWidget {
-  const ResponseCountdown({super.key, required this.deadline});
+  const ResponseCountdown({
+    super.key,
+    required this.deadline,
+    this.label = 'Responde en',
+  });
 
   final DateTime deadline;
+
+  /// Texto antes del tiempo restante, p. ej. "Carlos responde en".
+  final String label;
 
   @override
   State<ResponseCountdown> createState() => _ResponseCountdownState();
@@ -33,7 +40,7 @@ class _ResponseCountdownState extends State<ResponseCountdown> {
     final urgent = left < const Duration(minutes: 30);
     final text = left.isNegative
         ? 'El plazo para responder venció'
-        : 'Responde en ${formatRemaining(left)}';
+        : '${widget.label} ${formatRemaining(left)}';
     return Semantics(
       container: true,
       child: Row(

@@ -8,6 +8,7 @@ import '../../data/models/booking.dart';
 import '../../data/providers.dart';
 import '../../data/repositories/repository.dart';
 import '../bookings/bookings_providers.dart';
+import '../bookings/contact_box.dart';
 
 /// Agenda del cuidador: reservas aceptadas (próximas) y completadas.
 class AgendaTab extends ConsumerWidget {
@@ -130,40 +131,71 @@ class _AgendaCardState extends ConsumerState<_AgendaCard> {
         borderRadius: BorderRadius.circular(AppTheme.radius),
         boxShadow: accepted ? AppTheme.softShadow : null,
       ),
-      child: Row(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Expanded(
-            child: Semantics(
-              container: true,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    '${formatDateTime(b.startAt)} · ${b.service.label}',
-                    style: theme.textTheme.titleSmall?.copyWith(
-                      fontWeight: FontWeight.w800,
-                    ),
+          Row(
+            children: [
+              Expanded(
+                child: Semantics(
+                  container: true,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        '${formatDateTime(b.startAt)} · ${b.service.label}',
+                        style: theme.textTheme.titleSmall?.copyWith(
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                      Text(
+                        '${b.dogName}, de ${b.ownerName}',
+                        style: theme.textTheme.bodyMedium,
+                      ),
+                      Text(
+                        '${formatCop(b.totalCop)} · ${b.status.label}',
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: AppColors.muted,
+                        ),
+                      ),
+                    ],
                   ),
-                  Text(
-                    '${b.dogName}, de ${b.ownerName}',
-                    style: theme.textTheme.bodyMedium,
-                  ),
-                  Text(
-                    '${formatCop(b.totalCop)} · ${b.status.label}',
-                    style: theme.textTheme.bodySmall?.copyWith(
-                      color: AppColors.muted,
-                    ),
-                  ),
-                ],
+                ),
               ),
-            ),
+              if (accepted)
+                TextButton(
+                  onPressed: _busy ? null : _complete,
+                  child: const Text('Marcar completada'),
+                ),
+            ],
           ),
-          if (accepted)
-            TextButton(
-              onPressed: _busy ? null : _complete,
-              child: const Text('Marcar completada'),
-            ),
+          if (accepted) ...[ContactBox(booking: b), _DogNotes(booking: b)],
         ],
+      ),
+    );
+  }
+}
+
+/// Notas médicas y de comportamiento del perro (solo con la reserva aceptada).
+class _DogNotes extends ConsumerWidget {
+  const _DogNotes({required this.booking});
+
+  final Booking booking;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final notes = ref
+        .watch(dogNotesProvider((id: booking.id, status: booking.status)))
+        .value;
+    if (notes == null) return const SizedBox.shrink();
+    return Padding(
+      padding: const EdgeInsets.only(top: 8),
+      child: Semantics(
+        container: true,
+        child: Text(
+          'Notas de ${booking.dogName}: $notes',
+          style: Theme.of(context).textTheme.bodyMedium,
+        ),
       ),
     );
   }

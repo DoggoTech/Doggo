@@ -543,6 +543,21 @@ returns boolean language sql stable security definer set search_path = public as
   );
 $$;
 
+-- 5g. Un perro con reservas activas no se borra: el cuidador perdería sus datos.
+create function private.guard_dog_delete()
+returns trigger language plpgsql security definer set search_path = public as $$
+begin
+  if exists (select 1 from bookings where dog_id = old.id and status in ('pending', 'accepted')) then
+    raise exception 'dog_has_active_bookings' using errcode = '22023';
+  end if;
+  return old;
+end;
+$$;
+
+create trigger guard_dog_delete
+  before delete on public.dogs
+  for each row execute function private.guard_dog_delete();
+
 create trigger validate_report_insert
   before insert on public.reports
   for each row execute function private.validate_report_insert();

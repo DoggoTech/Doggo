@@ -1,5 +1,6 @@
 import '../models/availability.dart';
 import '../models/booking.dart';
+import '../models/contact_info.dart';
 import '../models/dog.dart';
 import '../models/profile.dart';
 import '../models/review.dart';
@@ -73,7 +74,17 @@ abstract class Repository {
     required String name,
     required DogSize size,
     String? breed,
+    String? notes,
   });
+
+  Future<Dog> updateDog(Dog dog);
+
+  /// Falla si el perro tiene reservas activas.
+  Future<void> deleteDog(String dogId);
+
+  /// Notas del perro de una reserva: solo con la reserva `accepted` (o si es
+  /// el dueño). En otro caso devuelve `null`.
+  Future<String?> fetchDogNotesForBooking(String bookingId);
 
   /// Crea una reserva `pending`. Valida como el trigger de la base: fecha
   /// futura, fin posterior al inicio, dueño y cuidador aprobados, perro propio
@@ -103,4 +114,22 @@ abstract class Repository {
   Future<void> saveMyServices(Map<ServiceType, int> services);
 
   Future<void> saveMyAvailability(WeeklyAvailability availability);
+
+  /// El dueño cancela una reserva `pending` o `accepted`.
+  Future<Booking> cancelBooking(String bookingId);
+
+  /// Teléfono y dirección de la contraparte, SOLO si la reserva está
+  /// `accepted`. En otro caso devuelve `null`.
+  Future<ContactInfo?> fetchCounterpartContact(String bookingId);
+
+  Future<PrivateData> fetchMyPrivateData();
+
+  Future<void> saveMyPrivateData(PrivateData data);
+
+  /// Reseña del dueño sobre una reserva `completed` (una por reserva).
+  Future<void> createReview({
+    required String bookingId,
+    required int rating,
+    String? comment,
+  });
 }

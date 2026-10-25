@@ -1,6 +1,7 @@
 import 'package:doggo/data/demo/demo_repository.dart';
 import 'package:doggo/data/models/availability.dart';
 import 'package:doggo/data/models/booking.dart';
+import 'package:doggo/data/models/contact_info.dart';
 import 'package:doggo/data/models/dog.dart';
 import 'package:doggo/data/models/profile.dart';
 import 'package:doggo/data/models/service_type.dart';
@@ -299,6 +300,107 @@ void main() {
       await clocked.saveMyServices({ServiceType.walk: 20000});
       expect((await clocked.fetchMySitterProfile()).services, {ServiceType.walk: 20000});
       expect((await clocked.fetchSitters()).any((s) => s.name == 'Nuevo Cuidador'), isFalse);
+    });
+  });
+
+  group('dueño: reservas, contacto, perros y reseñas', () {
+    late DemoRepository r;
+    setUp(() async {
+      r = DemoRepository();
+      await r.signIn(email: 'dueno@doggo.app', password: demoPassword);
+    });
+
+    Future<Booking> bookCarlos() => r.createBooking(
+          sitterId: 'demo-sitter',
+          dogId: rocky,
+          service: ServiceType.walk,
+          startAt: tomorrow9,
+          endAt: tomorrow9.add(const Duration(hours: 1)),
+        );
+
+    Future<void> as(String email) async {
+      await r.signOut();
+      await r.signIn(email: email, password: demoPassword);
+    }
+
+    test('el contacto solo se ve con la reserva aceptada, y en ambos sentidos', () async {
+      final b = await bookCarlos();
+      expect(await r.fetchCounterpartContact(b.id), isNull);
+      await as('cuidador@doggo.app');
+      expect(await r.fetchCounterpartContact(b.id), isNull);
+      await r.respondToBooking(b.id, accept: true);
+      final ownerContact = await r.fetchCounterpartContact(b.id);
+      expect(ownerContact!.name, 'Daniela Dueña');
+      expect(ownerContact.phone, isNotNull);
+      await as('dueno@doggo.app');
+      final sitterContact = await r.fetchCounterpartContact(b.id);
+      expect(sitterContact!.name, 'Carlos Cuidador');
+      expect(sitterContact.address, contains('Chapinero'));
+    });
+
+    test('las notas del perro: el cuidador solo las ve con la reserva aceptada', () async {
+      final b = await bookCarlos();
+      await as('cuidador@doggo.app');
+      expect(await r.fetchDogNotesForBooking(b.id), isNull);
+      await r.respondToBooking(b.id, accept: true);
+      expect(await r.fetchDogNotesForBooking(b.id), contains('motos'));
+    });
+
+    test('cancelar una reserva pendiente o aceptada, no una completada', () async {
+      final b = await bookCarlos();
+      expect((await r.cancelBooking(b.id)).status, BookingStatus.cancelled);
+      expect(() => r.cancelBooking(b.id), throwsA(isA<ValidationFailure>()));
+    });
+
+    test('reseña: solo completadas, una vez, y actualiza la calificación', () async {
+      final b = await bookCarlos();
+      expect(() => r.createReview(bookingId: b.id, rating: 5), throwsA(isA<ValidationFailure>()));
+      await as('cuidador@doggo.app');
+      await r.respondToBooking(b.id, accept: true);
+      await r.completeBooking(b.id);
+      await as('dueno@doggo.app');
+      await r.createReview(bookingId: b.id, rating: 5, comment: 'Excelente');
+      expect(() => r.createReview(bookingId: b.id, rating: 4), throwsA(isA<ValidationFailure>()));
+      final carlos = await r.fetchSitter('demo-sitter');
+      expect(carlos!.ratingCount, 1);
+      expect(carlos.ratingAvg, 5.0);
+      final reviews = await r.fetchReviews('demo-sitter');
+      expect(reviews.single.comment, 'Excelente');
+    });
+
+    test('reseña con teléfono: rechazada', () async {
+      final b = await bookCarlos();
+      await as('cuidador@doggo.app');
+      await r.respondToBooking(b.id, accept: true);
+      await r.completeBooking(b.id);
+      await as('dueno@doggo.app');
+      expect(
+        () => r.createReview(bookingId: b.id, rating: 5, comment: 'llámame al 300 111 2233'),
+        throwsA(isA<ValidationFailure>()),
+      );
+    });
+
+    test('perros: editar, notas sin datos de contacto y borrar', () async {
+      final max = await r.addDog(name: 'Max', size: DogSize.giant, notes: 'Toma pastilla a las 8');
+      final edited = await r.updateDog(Dog(id: max.id, ownerId: max.ownerId, name: 'Max II', size: DogSize.large));
+      expect(edited.name, 'Max II');
+      expect(
+        () => r.updateDog(Dog(id: max.id, ownerId: max.ownerId, name: 'Max', size: DogSize.large, notes: 'mi cel 3001112233')),
+        throwsA(isA<ValidationFailure>()),
+      );
+      await r.deleteDog(max.id);
+      expect((await r.fetchMyDogs()).map((d) => d.name), ['Rocky', 'Luna']);
+    });
+
+    test('no se borra un perro con reservas activas', () async {
+      await bookCarlos();
+      expect(() => r.deleteDog(rocky), throwsA(isA<ValidationFailure>()));
+    });
+
+    test('mis datos de contacto: se guardan y se validan', () async {
+      await r.saveMyPrivateData(const PrivateData(phone: '+57 311 222 3344', address: 'Calle 1'));
+      expect((await r.fetchMyPrivateData()).phone, '+57 311 222 3344');
+      expect(() => r.saveMyPrivateData(const PrivateData(phone: 'llámame')), throwsA(isA<ValidationFailure>()));
     });
   });
 

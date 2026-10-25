@@ -7,6 +7,7 @@ import '../../data/demo/demo_repository.dart';
 import '../../data/models/profile.dart';
 import '../../data/providers.dart';
 import '../../data/repositories/repository.dart';
+import 'private_data_card.dart';
 
 class ProfileScreen extends ConsumerStatefulWidget {
   const ProfileScreen({super.key, required this.profile});
@@ -123,6 +124,10 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
               ],
             ),
           ),
+          const SizedBox(height: 16),
+        ],
+        if (p.role.isSelectable) ...[
+          const PrivateDataCard(),
           const SizedBox(height: 16),
         ],
         if (repo is DemoRepository)
