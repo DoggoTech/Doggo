@@ -40,5 +40,11 @@ export async function login(page: Page, email: string, password = 'doggo123') {
 /** Los avisos con liveRegion aparecen duplicados en el árbol: tomamos el primero. */
 export const texto = (page: Page, t: string | RegExp) => page.getByText(t).first();
 
+/**
+ * Destino de navegación. En celular (barra inferior) Flutter lo expone como
+ * `tab`; en escritorio (riel lateral) como botón "Nombre Tab N of M".
+ */
 export const tab = (page: Page, name: string) =>
-  page.getByRole('tab', { name });
+  page
+    .getByRole('tab', { name, exact: true })
+    .or(page.getByRole('button', { name: new RegExp(`^${name} Tab \\d+ of \\d+$`) }));

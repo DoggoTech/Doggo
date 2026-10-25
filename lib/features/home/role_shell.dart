@@ -1,7 +1,12 @@
 import 'package:flutter/material.dart';
 
 import '../../data/models/profile.dart';
+import '../../core/theme/app_colors.dart';
+import '../../shared/widgets/doggo_logo.dart';
 import '../profile/profile_screen.dart';
+
+/// Ancho desde el cual la navegación pasa de barra inferior a riel lateral.
+const wideBreakpoint = 840.0;
 
 class _Tab {
   const _Tab(this.label, this.icon, this.soon);
@@ -58,25 +63,60 @@ class _RoleShellState extends State<RoleShell> {
     final tabs = _tabsByRole[widget.profile.role]!;
     final index = _index.clamp(0, tabs.length - 1);
     final tab = tabs[index];
-    return Scaffold(
-      body: SafeArea(
-        child: Center(
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 720),
-            child: tab == _profileTab
-                ? ProfileScreen(profile: widget.profile)
-                : _ComingSoon(tab: tab),
+    final content = Center(
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 960),
+        child: tab == _profileTab
+            ? ProfileScreen(profile: widget.profile)
+            : _ComingSoon(tab: tab),
+      ),
+    );
+
+    // Pantallas anchas (escritorio, tablet horizontal): riel lateral.
+    // Pantallas angostas (celular): barra inferior.
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        if (constraints.maxWidth >= wideBreakpoint) {
+          return Scaffold(
+            body: SafeArea(
+              child: Row(
+                children: [
+                  NavigationRail(
+                    selectedIndex: index,
+                    onDestinationSelected: (i) => setState(() => _index = i),
+                    labelType: NavigationRailLabelType.all,
+                    backgroundColor: AppColors.background,
+                    leading: const Padding(
+                      padding: EdgeInsets.symmetric(vertical: 16),
+                      child: DoggoLogo(size: 56),
+                    ),
+                    destinations: [
+                      for (final t in tabs)
+                        NavigationRailDestination(
+                          icon: Icon(t.icon),
+                          label: Text(t.label),
+                        ),
+                    ],
+                  ),
+                  const VerticalDivider(width: 1),
+                  Expanded(child: content),
+                ],
+              ),
+            ),
+          );
+        }
+        return Scaffold(
+          body: SafeArea(child: content),
+          bottomNavigationBar: NavigationBar(
+            selectedIndex: index,
+            onDestinationSelected: (i) => setState(() => _index = i),
+            destinations: [
+              for (final t in tabs)
+                NavigationDestination(icon: Icon(t.icon), label: t.label),
+            ],
           ),
-        ),
-      ),
-      bottomNavigationBar: NavigationBar(
-        selectedIndex: index,
-        onDestinationSelected: (i) => setState(() => _index = i),
-        destinations: [
-          for (final t in tabs)
-            NavigationDestination(icon: Icon(t.icon), label: t.label),
-        ],
-      ),
+        );
+      },
     );
   }
 }
