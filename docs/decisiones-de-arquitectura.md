@@ -15,6 +15,8 @@ original del producto.
 | Estado con **Riverpod**, navegación con **go_router** | Lo pide el contexto. |
 | Mapa con **flutter_map + OpenStreetMap** | Sin API key y funciona en web. |
 | Hosting en **GitHub Pages** con `--base-href /Doggo/` | El repositorio se llama `DoggoTech/Doggo` (no `doggo`). |
+| **Workflows** `deploy.yml` (Pages en cada push a `main`, con `flutter analyze` y `flutter test` antes), `apk.yml` (tag `v*` o a mano → Release) y `keepalive.yml` (no hace nada mientras no haya `SUPABASE_URL`) | Publicar solo con GitHub, como pide el contexto. Sin secretos, todo sale en modo demo. |
+| **APK firmado con la clave de depuración** | Basta para instalarlo directo; una clave propia hará falta solo para la Play Store. |
 
 ## 2. Base de datos (Supabase)
 
@@ -69,6 +71,5 @@ original del producto.
 ## 6. Pendientes
 
 1. **`SupabaseRepository`** y conectar un proyecto real (verificar el tiempo real entre dos dispositivos en menos de 2 s).
-2. **Fase 11**: GitHub Pages, PWA, keep-alive, README (incluir: en Mac hay que permitir Localización a Chrome).
-3. **Fase 12**: pulido (agrupar pines solapados, animaciones, estados vacíos).
-4. **Después del MVP**: beneficios para cuidadores con buena calificación (niveles, destacar en el mapa), cuando haya reseñas reales.
+2. **Fase 12**: pulido (agrupar pines solapados, animaciones, estados vacíos; en la tarjeta de solicitud, separar el contador de "Reportar").
+3. **Después del MVP**: beneficios para cuidadores con buena calificación (niveles, destacar en el mapa), cuando haya reseñas reales.

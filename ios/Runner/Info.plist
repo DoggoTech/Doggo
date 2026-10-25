@@ -6,6 +6,12 @@
 	<true/>
 	<key>CFBundleDevelopmentRegion</key>
 	<string>$(DEVELOPMENT_LANGUAGE)</string>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>Doggo usa tu ubicación para mostrarte cuidadores cerca y, si eres cuidador, para marcar tu zona de servicio.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>Doggo usa tus fotos para tu foto de perfil.</string>
+	<key>NSCameraUsageDescription</key>
+	<string>Doggo usa la cámara para tomar tu foto de perfil.</string>
 	<key>CFBundleDisplayName</key>
 	<string>Doggo</string>
 	<key>CFBundleExecutable</key>

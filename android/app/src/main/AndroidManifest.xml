@@ -1,6 +1,11 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Mapa (teselas de OpenStreetMap) y, más adelante, Supabase. -->
+    <uses-permission android:name="android.permission.INTERNET"/>
+    <!-- "Mi ubicación" en el mapa y la zona de servicio del cuidador. -->
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION"/>
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION"/>
     <application
-        android:label="doggo"
+        android:label="Doggo"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">
         <activity
