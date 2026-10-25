@@ -13,23 +13,24 @@ Los cuidadores pasan por revisión antes de salir en el mapa, y el contacto solo
 
 **https://doggotech.github.io/Doggo/**
 
-Toca **Probar demo** y entras como dueño. Para cambiar de rol sin cerrar sesión, ve a **Perfil → Modo demo** (arriba del todo).
-También puedes entrar con estas cuentas (contraseña `doggo123`; son de demostración, no son secretas):
+Hay dos formas de probarla:
+
+**1. Con cuentas reales (datos compartidos y en tiempo real).** La app está conectada a Supabase: lo que haces queda guardado y lo ven los demás. Cuentas de prueba (contraseña `doggo123`; son públicas a propósito):
 
 | Rol | Correo |
 |---|---|
 | Dueño | `dueno@doggo.app` |
 | Cuidador | `cuidador@doggo.app` |
-| Administrador | `admin@doggo.app` |
-| Superadministrador | `superadmin@doggo.app` |
 
-### Guion de 1 minuto
+También puedes **crear tu propia cuenta** de dueño o de cuidador (los cuidadores nuevos quedan en revisión hasta que un admin los aprueba). Las cuentas de administrador del modo real son privadas.
 
-1. Como **dueño**, toca el pin de **Carlos Cuidador** en el mapa → **Reservar** → elige a Rocky, el día y la hora → **Enviar solicitud**.
-2. **Perfil → Modo demo → Cuidador**: la solicitud está en **Solicitudes**, con el plazo de 2 horas para responder. Toca **Aceptar**.
-3. **Perfil → Modo demo → Dueño → Reservas**: la reserva sale aceptada y ahora sí ves el teléfono y la dirección del cuidador.
+**2. Con la demo.** Toca **Probar demo**: datos de ejemplo solo en tu navegador (se reinician al recargar). En **Perfil → Modo demo** (arriba) puedes pasar por los 4 roles, incluidos **Administrador** y **Superadministrador**, sin cerrar sesión. Al cerrar sesión vuelves al modo real.
 
-> **Modo demo:** por ahora la app corre con datos de ejemplo guardados en tu navegador. Cada visitante tiene su propia copia y se reinicia al recargar la página, así que dos personas no se ven entre sí. El tiempo real entre dispositivos llega al conectar Supabase (ver [Pendientes](#pendientes)).
+### Guion de 1 minuto (dos dispositivos)
+
+1. En un celular o pestaña entra como **cuidador** (`cuidador@doggo.app`) y quédate en **Solicitudes**.
+2. En otro, entra como **dueño** (`dueno@doggo.app`), toca el pin de **Carlos Cuidador** → **Reservar** → elige (o agrega) un perro, el día y la hora → **Enviar solicitud**.
+3. La solicitud le aparece al cuidador **al instante, sin recargar**. Tócala en **Aceptar**: el dueño ve el cambio en vivo en **Reservas**, y ahora los dos ven el teléfono y la dirección del otro.
 
 ## Instalar en el celular
 
@@ -48,7 +49,7 @@ En todos los casos, acepta el permiso de ubicación para ver cuidadores cerca de
 - **Reportes y moderación:** cualquiera puede reportar a otro usuario; los admins atienden reportes y suspenden cuentas. Un usuario suspendido desaparece del mapa y no puede entrar.
 - **Equipo y auditoría:** solo el superadmin nombra o quita admins y elimina cuentas. Cada acción queda en un historial que el superadmin ve completo y cada admin ve solo lo suyo.
 
-**Prueba la moderación:** como **Administrador**, en **Aprobaciones** aprueba a Natalia Peña → cambia a **Dueño** → Natalia aparece en el mapa con la insignia Verificado.
+**Prueba la moderación** (en la demo): **Perfil → Modo demo → Administrador** → en **Aprobaciones** aprueba a Natalia Peña → cambia a **Dueño** → Natalia aparece en el mapa con la insignia Verificado.
 
 ## Correr en local
 
@@ -56,7 +57,7 @@ Necesitas [Flutter](https://docs.flutter.dev/get-started/install) estable (proba
 
 ```bash
 git clone https://github.com/DoggoTech/Doggo.git && cd Doggo
-cp env.example.json env.json   # las claves vacías = modo demo
+cp env.example.json env.json   # pon tu SUPABASE_URL y tu clave pública; vacías = solo demo
 flutter pub get
 flutter run -d chrome --dart-define-from-file=env.json
 ```
@@ -70,6 +71,7 @@ Desde VS Code: **F5** con una de las configuraciones de `.vscode/launch.json` (C
 
 ```bash
 flutter test         # lógica de la app (repositorio demo)
+flutter test test/live --dart-define-from-file=env.json   # contra tu Supabase real (dos sesiones y tiempo real)
 npm install
 npm run test:db      # base de datos: RLS, triggers y RPC sobre Postgres real (PGlite)
 npm run test:full    # compila la web y corre las pruebas e2e con Playwright (~8 min)
@@ -77,21 +79,20 @@ npm run test:full    # compila la web y corre las pruebas e2e con Playwright (~8
 
 ## Montar tu propio backend (Supabase)
 
-1. Crea un proyecto en [supabase.com](https://supabase.com) (plan gratis).
-2. En el **SQL Editor**, corre `supabase/schema.sql` y luego `supabase/seed.sql`.
-3. En **Authentication → Providers → Email**, desactiva la confirmación de correo (para la demo).
-4. Crea las 4 cuentas de prueba en **Authentication → Users** y corre `supabase/assign_roles.sql` para darles su rol.
-5. Copia **Project URL** y **anon key** (Settings → API) en `env.json`.
+1. Crea un proyecto en [supabase.com](https://supabase.com) (plan gratis, región São Paulo para Colombia).
+2. En el **SQL Editor**, corre `supabase/schema.sql` y luego `supabase/seed.sql` (una vez cada uno, en consultas nuevas).
+3. En **Authentication → Sign In / Providers**, apaga **Confirm email**.
+4. En **Authentication → Users → Add user** crea `dueno@`, `cuidador@`, `admin@` y `superadmin@doggo.app` con **Auto Confirm User**. Usa contraseñas propias y privadas para admin y superadmin.
+5. Corre `supabase/assign_roles.sql` para darles su rol.
+6. En **Connect** (arriba en el panel) copia la **URL** y la **publishable key** a `env.json`.
 
-La clave **anon** es pública por diseño: la protección está en las reglas de la base. La clave **service_role** nunca va en la app ni en el repositorio.
-
-> La conexión de la app con Supabase (`SupabaseRepository`) aún está pendiente; mientras tanto la app usa el modo demo aunque `env.json` tenga claves.
+La clave **publishable/anon** es pública por diseño: la protección está en las reglas de la base. La clave **secret/service_role** nunca va en la app ni en el repositorio.
 
 ## Publicación (para quien mantiene el repositorio)
 
 - **Web:** cada push a `main` corre `.github/workflows/deploy.yml` (análisis, pruebas, compilación con `--base-href /Doggo/` y publicación). Requiere **Settings → Pages → Source: GitHub Actions**.
 - **APK:** `.github/workflows/apk.yml` corre al crear un tag `v*` (p. ej. `git tag v0.1.0 && git push origin v0.1.0`) o a mano desde **Actions**, y adjunta `doggo.apk` a un Release.
-- **Secretos:** al conectar Supabase, carga `SUPABASE_URL` y `SUPABASE_ANON_KEY` en **Settings → Secrets and variables → Actions**. Sin ellos, todo se publica en modo demo.
+- **Secretos:** `SUPABASE_URL` y `SUPABASE_ANON_KEY` (la publishable key) en **Settings → Secrets and variables → Actions**. Sin ellos, la app se publica solo con la demo.
 - **Keep-alive:** el plan gratis de Supabase pausa el proyecto tras 7 días sin uso. `.github/workflows/keepalive.yml` le hace un ping cada 2 días. Ten en cuenta que:
   - GitHub desactiva los workflows programados si el repositorio pasa **60 días sin commits**; se reactivan en la pestaña **Actions**.
   - Si el proyecto ya está pausado, el ping **no lo despierta**: hay que reactivarlo una vez desde el panel de Supabase (*Restore*).
@@ -101,11 +102,10 @@ La clave **anon** es pública por diseño: la protección está en las reglas de
 
 - **Flutter** (un solo código para web, Android e iOS) con **Riverpod** y **go_router**; mapa con **flutter_map + OpenStreetMap**.
 - **Supabase** (Auth, Postgres, Realtime, Storage) sin servidor propio.
-- **Patrón Repository:** `DemoRepository` (en memoria, el que corre hoy) y `SupabaseRepository` (pendiente), intercambiables sin tocar la interfaz.
+- **Patrón Repository:** `SupabaseRepository` (real) y `DemoRepository` (en memoria, el de "Probar demo"), intercambiables sin tocar la interfaz.
 
 Detalle en [`docs/decisiones-de-arquitectura.md`](docs/decisiones-de-arquitectura.md) y [`docs/modelo-de-datos.md`](docs/modelo-de-datos.md).
 
 ## Pendientes
 
-1. **Conectar Supabase** (`SupabaseRepository`): cuentas reales y reservas en tiempo real entre dispositivos.
-2. **Después del MVP:** beneficios para cuidadores con buena calificación.
+1. **Después del MVP:** beneficios para cuidadores con buena calificación, pagos dentro de la app, chat y notificaciones push.

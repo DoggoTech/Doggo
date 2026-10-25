@@ -11,7 +11,9 @@ original del producto.
 | **Flutter** (un código para web, Android e iOS) + **Supabase** (Auth, Postgres, Realtime, Storage), **sin servidor propio** | Lo pide el contexto; plan gratuito; menos piezas que mantener. |
 | **La seguridad vive en la base**: RLS, permisos por columna, `CHECK`, triggers y RPC `security definer` | Ocultar un botón no protege nada; un cliente malicioso puede llamar a la API directamente. |
 | **Patrón `Repository`** con dos implementaciones: `DemoRepository` (en memoria) y `SupabaseRepository` | Cambiar de modo sin tocar la UI. El demo es el respaldo si Supabase falla. |
-| **`DemoRepository` se construyó primero** (fase 2) | No había proyecto de Supabase; permite probar cada pantalla con Playwright desde el inicio. **`SupabaseRepository` está pendiente.** |
+| **`DemoRepository` se construyó primero** (fase 2) | No había proyecto de Supabase; permite probar cada pantalla con Playwright desde el inicio. `SupabaseRepository` llegó después, con los mismos mensajes de error (traduce los códigos de la base). |
+| **Modo real por defecto y "Probar demo" como respaldo**: con claves de Supabase la app arranca en real; "Probar demo" cambia a la demo en memoria y "Cerrar sesión" vuelve al real | Los revisores ven datos compartidos y en vivo, y la demo (con los 4 roles) sigue disponible aunque Supabase falle. |
+| **Tiempo real**: `watchMyBookings` escucha `postgres_changes` de `bookings` (RLS filtra las ajenas) y recarga la lista; al quedar suscrito recarga una vez | Lo que cambia mientras se abre la conexión no llega como evento. Medido contra el proyecto real: solicitud al cuidador en ~0,8 s y aceptación al dueño en ~0,4 s. |
 | Estado con **Riverpod**, navegación con **go_router** | Lo pide el contexto. |
 | Mapa con **flutter_map + OpenStreetMap** | Sin API key y funciona en web. |
 | Hosting en **GitHub Pages** con `--base-href /Doggo/` | El repositorio se llama `DoggoTech/Doggo` (no `doggo`). |
@@ -79,5 +81,4 @@ original del producto.
 
 ## 6. Pendientes
 
-1. **`SupabaseRepository`** y conectar un proyecto real (verificar el tiempo real entre dos dispositivos en menos de 2 s).
-2. **Después del MVP**: beneficios para cuidadores con buena calificación (niveles, destacar en el mapa), cuando haya reseñas reales.
+1. **Después del MVP**: beneficios para cuidadores con buena calificación (niveles, destacar en el mapa), cuando haya reseñas reales.

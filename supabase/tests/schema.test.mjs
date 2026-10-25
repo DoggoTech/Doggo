@@ -40,6 +40,26 @@ async function adminUser(t, email = 'admin@t.test', role = 'admin') {
 
 // ---------------------------------------------------------------------------
 describe('esquema y datos de ejemplo', () => {
+  test('cada cuidador del seed tiene barrio, y las reseñas muestran "Nombre I."', () =>
+    tx(async (t) => {
+      const sinBarrio = await t.q(`select id from profiles where role = 'sitter' and neighborhood is null`);
+      assert.equal(sinBarrio.length, 0);
+      const autores = await t.q(`select distinct author_name from reviews`);
+      assert.deepEqual(autores.map((r) => r.author_name), ['Marcela D.']);
+      // Un visitante sin sesión ve barrio y autor (es lo que muestra el mapa).
+      const [laura] = await t.as(null, () => t.q(`select neighborhood from profiles where id = $1`, [IDS.laura]));
+      assert.equal(laura.neighborhood, 'Chapinero');
+    }));
+
+  test('el barrio no acepta datos de contacto y el cuidador puede cambiarlo', () =>
+    tx(async (t) => {
+      await t.as(IDS.laura, () => t.q(`update profiles set neighborhood = 'Rosales' where id = $1`, [IDS.laura]));
+      rejects(
+        await t.as(IDS.laura, () => t.fails(`update profiles set neighborhood = 'Llama al 3001234567' where id = $1`, [IDS.laura])),
+        /check constraint/,
+      );
+    }));
+
   test('el seed deja 10 cuidadores aprobados (todos verificados) y 2 en revisión', () =>
     tx(async (t) => {
       const rows = await t.q(
@@ -295,8 +315,20 @@ describe('datos privados', () => {
       await t.as(IDS.laura, () => t.q(`update bookings set status = 'accepted' where id = $1`, [id]));
       const notesAccepted = await t.as(IDS.laura, () => t.q(`select notes from dog_notes where dog_id = $1`, [IDS.rocky]));
       assert.equal(notesAccepted.length, 1);
-      const stranger = await t.as(IDS.andres, () => t.q(`select * from dogs where id = $1`, [IDS.rocky]));
+      const stranger = await t.as(IDS.natalia, () => t.q(`select * from dogs where id = $1`, [IDS.rocky]));
       assert.equal(stranger.length, 0, 'otro cuidador no ve al perro');
+    }));
+
+  test('el cuidador ve el nombre del perro de una reserva completada, no sus notas', () =>
+    tx(async (t) => {
+      await t.as(IDS.marcela, () =>
+        t.q(`insert into dog_notes (dog_id, notes) values ($1, 'Alergia a la penicilina')`, [IDS.rocky]),
+      );
+      // Andrés paseó a Rocky (reserva completada del seed).
+      const dog = await t.as(IDS.andres, () => t.q(`select name from dogs where id = $1`, [IDS.rocky]));
+      assert.deepEqual(dog.map((d) => d.name), ['Rocky']);
+      const notes = await t.as(IDS.andres, () => t.q(`select notes from dog_notes where dog_id = $1`, [IDS.rocky]));
+      assert.equal(notes.length, 0);
     }));
 
   test('un perro con reservas activas no se puede borrar', () =>

@@ -218,7 +218,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
         const SizedBox(height: 16),
         const SizedBox(height: 24),
         FilledButton(
-          onPressed: () => ref.read(repositoryProvider).signOut(),
+          onPressed: () => signOutAndReset(ref),
           child: const Text('Cerrar sesión'),
         ),
       ],
