@@ -128,7 +128,9 @@ export async function openSitterProfile(page: Page, name: string) {
 export async function openProfileFromMap(page: Page, name: string) {
   await expect(pin(page, name)).toBeAttached({ timeout: 15_000 });
   await pin(page, name).dispatchEvent('click');
-  await page.getByRole('button', { name: 'Ver perfil' }).click();
+  // Si había otro cuidador seleccionado, por un instante conviven la tarjeta que
+  // se va y la nueva: la nueva es la última.
+  await page.getByRole('button', { name: 'Ver perfil' }).last().click();
   await expect(page.getByText('Perfil del cuidador')).toBeVisible();
 }
 
@@ -254,3 +256,19 @@ export async function scrollUntil(page: Page, target: Locator) {
   }
   await expect(target.first()).toBeAttached();
 }
+
+/** Baja hasta el final de una lista larga (p. ej. la zona de servicio, al final de Servicios). */
+export async function scrollToEnd(page: Page, lastItem: Locator) {
+  await scrollUntil(page, lastItem);
+  const vp = page.viewportSize()!;
+  for (let i = 0; i < 4; i++) {
+    await page.mouse.move(vp.width / 2, vp.height * 0.25);
+    await page.mouse.wheel(0, 600);
+    await page.waitForTimeout(120);
+  }
+  await page.waitForTimeout(300);
+}
+
+/** El pin que marca la zona dentro del mini mapa (forma parte del botón del mapa). */
+export const zonePin = (page: Page) => page.getByRole('button', { name: /Tu zona marcada/ });
+export const zoneMap = (page: Page) => page.getByRole('button', { name: /^Mapa para marcar tu zona/ });

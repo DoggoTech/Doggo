@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { enterAsOwner, goToLogin, login, openApp, pin, pins, selectService, switchDemo, tab, tiles } from './helpers';
+import { enterAsOwner, goToLogin, login, openApp, pin, pins, selectService, switchDemo, tab, tiles, typeInto } from './helpers';
 
 test.describe('mapa del dueño', () => {
   test('muestra un pin por cuidador aprobado, con el precio del paseo', async ({ page }) => {
@@ -19,18 +19,9 @@ test.describe('mapa del dueño', () => {
     await goToLogin(page);
     await page.getByRole('button', { name: 'Crear cuenta' }).click();
     await page.getByRole('button', { name: 'Soy cuidador' }).click();
-    const fill = async (label: string, text: string) => {
-      const box = page.getByRole('textbox', { name: label });
-      await expect(async () => {
-        await box.click();
-        await box.press('ControlOrMeta+a');
-        await box.pressSequentially(text);
-        await expect(box).toHaveValue(text, { timeout: 1_000 });
-      }).toPass({ timeout: 15_000 });
-    };
-    await fill('Nombre completo', 'Sitter Nuevo');
-    await fill('Correo', 'nuevo.sitter@test.com');
-    await fill('Contraseña', 'secreto1');
+    await typeInto(page, 'Nombre completo', 'Sitter Nuevo');
+    await typeInto(page, 'Correo', 'nuevo.sitter@test.com');
+    await typeInto(page, 'Contraseña', 'secreto1');
     await page.getByRole('checkbox').click();
     await page.getByRole('button', { name: 'Crear cuenta' }).last().click();
     await expect(tab(page, 'Solicitudes')).toBeVisible();
@@ -142,16 +133,17 @@ test.describe('lista y selección', () => {
     await expect(page.getByRole('button', { name: 'Cerrar' })).toHaveCount(0);
   });
 
-  test('los verificados llevan insignia', async ({ page }) => {
+  test('todo cuidador del mapa lleva la insignia Verificado', async ({ page }) => {
     await enterAsOwner(page);
-    await pin(page, 'Laura Gómez').dispatchEvent('click');
-    await expect(page.getByRole('button', { name: 'Cerrar' })).toBeVisible();
-    await expect(page.getByText(/Laura Gómez\s*Verificado/)).toBeVisible();
-    await page.getByRole('button', { name: 'Cerrar' }).click();
-    // Julián no está verificado: su tarjeta no lleva la insignia.
-    await pin(page, 'Julián Castro').dispatchEvent('click');
-    await expect(page.getByText(/Julián Castro/).first()).toBeVisible();
-    await expect(page.getByText(/Julián Castro\s*Verificado/)).toHaveCount(0);
+    // Aprobar es verificar: cualquiera que salga en el mapa la tiene.
+    for (const name of ['Laura Gómez', 'Julián Castro']) {
+      await pin(page, name).dispatchEvent('click');
+      await expect(page.getByRole('button', { name: 'Cerrar' })).toBeVisible();
+      await expect(page.getByText(new RegExp(`${name}\\s*Verificado`))).toBeVisible();
+      await page.getByRole('button', { name: 'Cerrar' }).click();
+      // Que la tarjeta termine de cerrarse antes de abrir la siguiente.
+      await expect(page.getByRole('button', { name: 'Cerrar' })).toHaveCount(0);
+    }
   });
 });
 

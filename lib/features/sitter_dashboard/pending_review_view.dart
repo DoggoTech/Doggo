@@ -76,7 +76,7 @@ class PendingReviewView extends StatelessWidget {
               ),
               step(
                 Icons.verified_user_rounded,
-                'Si quieres la insignia "Verificado", un admin te pedirá documento y selfie.',
+                'Un admin revisará tu documento y selfie; al aprobarte sales con la insignia "Verificado".',
               ),
             ],
           ),

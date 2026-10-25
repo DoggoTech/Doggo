@@ -1,6 +1,6 @@
 import { test, expect, Page } from '@playwright/test';
 import {
-  btn, enterAsOwner, goToLogin, openProfileFromMap, pin, pins, seen, switchDemo, tab, typeInto,
+  btn, enterAsOwner, goToLogin, openProfileFromMap, pin, pins, scrollToEnd, seen, switchDemo, tab, typeInto, zonePin,
 } from './helpers';
 
 test.describe.configure({ timeout: 90_000 });
@@ -34,6 +34,30 @@ test.describe('aprobaciones', () => {
     await expect(pins(page)).toHaveCount(12);
   });
 
+  test('rechazar deja la cuenta suspendida', async ({ page }) => {
+    await asAdmin(page);
+    await btn(page, 'Rechazar a Ricardo Salazar').click();
+    await btn(page, 'Sí, rechazar').click();
+    await expect(seen(page, 'Ricardo Salazar fue rechazado')).toBeVisible();
+    await searchUser(page, 'Ricardo');
+    await expect(seen(page, 'Estado: Suspendido')).toBeVisible();
+  });
+
+  test('aprobar da la insignia Verificado en el perfil público', async ({ page }) => {
+    await asAdmin(page);
+    // No hay interruptor aparte: aprobar es verificar.
+    await expect(toggle(page, 'Verificado: Natalia Peña')).toHaveCount(0);
+    await btn(page, 'Aprobar a Natalia Peña').click();
+    await expect(seen(page, 'Natalia Peña fue aprobado')).toBeVisible();
+    await switchDemo(page, 'Dueño');
+    await openProfileFromMap(page, 'Natalia Peña');
+    await expect(seen(page, /Natalia Peña\s*Verificado/)).toBeVisible();
+  });
+});
+
+test.describe('criterio de aceptación: aprobación', () => {
+  test.use({ geolocation: { latitude: 4.628, longitude: -74.15 }, permissions: ['geolocation'] });
+
   test('un cuidador recién registrado no aparece en el mapa hasta que el admin lo aprueba', async ({ page }) => {
     await goToLogin(page);
     await btn(page, 'Crear cuenta').click();
@@ -51,6 +75,13 @@ test.describe('aprobaciones', () => {
     await typeInto(page, 'Precio de Paseo', '20000');
     await btn(page, 'Guardar servicios').click();
     await expect(seen(page, 'Servicios guardados')).toBeVisible();
+    // Y su zona de servicio, al final de la página (sin ella no saldría en el mapa).
+    await scrollToEnd(page, btn(page, 'Guardar zona'));
+    await btn(page, 'Usar mi ubicación actual').click();
+    await expect(zonePin(page)).toBeAttached();
+    await typeInto(page, 'Barrio', 'Kennedy');
+    await btn(page, 'Guardar zona').click();
+    await expect(seen(page, 'Zona guardada')).toBeVisible();
 
     await switchDemo(page, 'Dueño');
     await expect(pins(page).first()).toBeAttached();
@@ -62,27 +93,10 @@ test.describe('aprobaciones', () => {
 
     await switchDemo(page, 'Dueño');
     await expect(pin(page, 'Sitter Nuevo')).toBeAttached(); // ya aprobado
+    await pin(page, 'Sitter Nuevo').dispatchEvent('click');
+    await expect(seen(page, /Kennedy · a /).first()).toBeVisible(); // su barrio, en la tarjeta
   });
 
-  test('rechazar deja la cuenta suspendida', async ({ page }) => {
-    await asAdmin(page);
-    await btn(page, 'Rechazar a Ricardo Salazar').click();
-    await btn(page, 'Sí, rechazar').click();
-    await expect(seen(page, 'Ricardo Salazar fue rechazado')).toBeVisible();
-    await searchUser(page, 'Ricardo');
-    await expect(seen(page, 'Estado: Suspendido')).toBeVisible();
-  });
-
-  test('la insignia Verificado llega al perfil público', async ({ page }) => {
-    await asAdmin(page);
-    await toggle(page, 'Verificado: Natalia Peña').click();
-    await expect(seen(page, 'Insignia actualizada')).toBeVisible();
-    await btn(page, 'Aprobar a Natalia Peña').click();
-    await expect(seen(page, 'Natalia Peña fue aprobado')).toBeVisible();
-    await switchDemo(page, 'Dueño');
-    await openProfileFromMap(page, 'Natalia Peña');
-    await expect(seen(page, /Natalia Peña\s*Verificado/)).toBeVisible();
-  });
 });
 
 test.describe('reportes', () => {
@@ -171,6 +185,13 @@ test.describe('usuarios', () => {
     await asAdmin(page, 'Superadministrador');
     await searchUser(page, 'Ana');
     await expect(btn(page, 'Suspender a Ana Admin')).toBeVisible();
+  });
+
+  test('la insignia no se edita desde Usuarios: va con la aprobación', async ({ page }) => {
+    await asAdmin(page);
+    await searchUser(page, 'Julián');
+    await expect(btn(page, 'Suspender a Julián Castro')).toBeVisible();
+    await expect(toggle(page, 'Verificado: Julián Castro')).toHaveCount(0);
   });
 
   test('filtros por rol y estado', async ({ page }) => {

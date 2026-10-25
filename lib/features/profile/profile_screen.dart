@@ -11,6 +11,7 @@ import '../../data/providers.dart';
 import '../../data/repositories/repository.dart';
 import 'bio_card.dart';
 import 'private_data_card.dart';
+import 'sitter_photo.dart';
 
 class ProfileScreen extends ConsumerStatefulWidget {
   const ProfileScreen({super.key, required this.profile});
@@ -59,19 +60,22 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     return ListView(
       padding: const EdgeInsets.all(24),
       children: [
-        Center(
-          child: CircleAvatar(
-            radius: 44,
-            backgroundColor: AppColors.primary,
-            child: Text(
-              p.fullName.isEmpty ? '?' : p.fullName[0].toUpperCase(),
-              style: theme.textTheme.headlineMedium?.copyWith(
-                color: Colors.white,
-                fontWeight: FontWeight.w900,
+        if (p.role == UserRole.sitter)
+          const SitterPhoto()
+        else
+          Center(
+            child: CircleAvatar(
+              radius: 44,
+              backgroundColor: AppColors.primary,
+              child: Text(
+                p.fullName.isEmpty ? '?' : p.fullName[0].toUpperCase(),
+                style: theme.textTheme.headlineMedium?.copyWith(
+                  color: Colors.white,
+                  fontWeight: FontWeight.w900,
+                ),
               ),
             ),
           ),
-        ),
         const SizedBox(height: 16),
         Text(
           p.fullName,

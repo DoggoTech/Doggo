@@ -725,6 +725,7 @@ end;
 $$;
 
 -- Aprobar o rechazar a un cuidador en revisión. Rechazar = suspender la cuenta.
+-- Aprobar es verificar: el admin ya revisó documento y selfie.
 create function public.admin_set_sitter_approval(target uuid, approve boolean)
 returns void language plpgsql security definer set search_path = public as $$
 declare
@@ -732,21 +733,11 @@ declare
 begin
   if t <> 'sitter' then raise exception 'not_a_sitter' using errcode = '22023'; end if;
   update profiles
-     set status = case when approve then 'approved' else 'suspended' end::public.user_status
+     set status = case when approve then 'approved' else 'suspended' end::public.user_status,
+         verified = approve
    where id = target and status = 'pending_review';
   if not found then raise exception 'not_pending' using errcode = '22023'; end if;
   perform private.log_action(case when approve then 'approve_sitter' else 'reject_sitter' end, target);
-end;
-$$;
-
-create function public.admin_set_verified(target uuid, is_verified boolean)
-returns void language plpgsql security definer set search_path = public as $$
-declare
-  t public.user_role := private.assert_can_moderate(target);
-begin
-  if t <> 'sitter' then raise exception 'not_a_sitter' using errcode = '22023'; end if;
-  update profiles set verified = is_verified where id = target;
-  perform private.log_action(case when is_verified then 'verify_sitter' else 'unverify_sitter' end, target);
 end;
 $$;
 
@@ -755,8 +746,10 @@ returns void language plpgsql security definer set search_path = public as $$
 declare
   t public.user_role := private.assert_can_moderate(target);
 begin
+  -- Reactivar a un cuidador lo deja aprobado, y aprobado es verificado.
   update profiles
-     set status = case when suspend then 'suspended' else 'approved' end::public.user_status
+     set status = case when suspend then 'suspended' else 'approved' end::public.user_status,
+         verified = verified or (not suspend and t = 'sitter')
    where id = target;
   perform private.log_action(case when suspend then 'suspend_user' else 'reactivate_user' end,
                              target, jsonb_build_object('target_role', t, 'reason', reason));
@@ -967,7 +960,6 @@ grant update (status) on public.bookings to authenticated;
 -- RPC: solo usuarios con sesión (cada una valida además el rol por dentro).
 grant execute on function
   public.admin_set_sitter_approval(uuid, boolean),
-  public.admin_set_verified(uuid, boolean),
   public.admin_set_user_suspended(uuid, boolean, text),
   public.admin_resolve_report(uuid, public.report_status, boolean),
   public.admin_search_users(text, public.user_role, public.user_status),

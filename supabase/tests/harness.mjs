@@ -58,6 +58,7 @@ export const IDS = {
   laura: 'a1000000-0000-4000-8000-000000000001', // cuidadora aprobada y verificada (Chapinero)
   andres: 'a1000000-0000-4000-8000-000000000002',
   natalia: 'a1000000-0000-4000-8000-000000000011', // cuidadora en revisión
+  ricardo: 'a1000000-0000-4000-8000-000000000012', // cuidador en revisión
   marcela: 'a2000000-0000-4000-8000-000000000001', // dueña de ejemplo
   rocky: 'd1000000-0000-4000-8000-000000000001',
   bookingLaura: 'b1000000-0000-4000-8000-000000000001', // completada

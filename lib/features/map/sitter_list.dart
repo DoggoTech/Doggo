@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -24,6 +26,22 @@ class SitterAvatar extends StatelessWidget {
         fontSize: radius * 0.8,
       ),
     );
+    final url = sitter.avatarUrl;
+    // Foto subida en el modo demo: data URI en memoria.
+    final dataBytes = url != null && url.startsWith('data:')
+        ? base64Decode(url.substring(url.indexOf(',') + 1))
+        : null;
+    if (dataBytes != null) {
+      return Semantics(
+        label: 'Foto de ${sitter.name}',
+        image: true,
+        child: CircleAvatar(
+          radius: radius,
+          backgroundColor: AppColors.primary,
+          backgroundImage: MemoryImage(dataBytes),
+        ),
+      );
+    }
     return CircleAvatar(
       radius: radius,
       backgroundColor: AppColors.primary,

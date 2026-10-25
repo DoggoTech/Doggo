@@ -50,7 +50,7 @@ erDiagram
 | `approx_lat`, `approx_lng` | double | ubicación del mapa (la calcula un trigger, ver abajo) |
 | `radius_km` | int | 1–50 |
 | `status` | user_status | cuidador nuevo → `pending_review`; dueño → `approved` |
-| `verified` | bool | insignia "Verificado" (solo la da un admin) |
+| `verified` | bool | insignia "Verificado": la pone `admin_set_sitter_approval` al aprobar (aprobar = verificar) |
 | `terms_accepted_at` | timestamptz | se guarda al registrarse |
 
 - **Lee:** el propio usuario · cualquiera los cuidadores `approved` (incluido `anon`) · la contraparte de una reserva · el admin.
@@ -114,7 +114,6 @@ Promedio y cantidad de reseñas por cuidador (`security_invoker`, respeta RLS).
 | Función | Quién | Qué hace |
 |---|---|---|
 | `admin_set_sitter_approval(target, approve)` | admin, superadmin | aprueba o rechaza (rechazar = suspender) a un cuidador en revisión |
-| `admin_set_verified(target, is_verified)` | admin, superadmin | insignia "Verificado" |
 | `admin_set_user_suspended(target, suspend, reason)` | admin, superadmin | suspende o reactiva |
 | `admin_resolve_report(report, resolution, suspend_reported)` | admin, superadmin | marca revisado/descartado y opcionalmente suspende |
 | `admin_search_users(q, role, status)` | admin, superadmin | busca por nombre o **correo** (el correo vive en `auth.users`) |

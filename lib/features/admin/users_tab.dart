@@ -167,51 +167,56 @@ class _UserRowState extends ConsumerState<_UserRow> {
     final protected = _protectedReason;
     final suspended = u.status == UserStatus.suspended;
     return AdminCard(
-      child: Row(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Expanded(
-            child: Semantics(
-              container: true,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    u.verified ? '${u.name} ✓' : u.name,
-                    style: theme.textTheme.titleMedium?.copyWith(
-                      fontWeight: FontWeight.w900,
-                    ),
+          Row(
+            children: [
+              Expanded(
+                child: Semantics(
+                  container: true,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        u.verified ? '${u.name} ✓' : u.name,
+                        style: theme.textTheme.titleMedium?.copyWith(
+                          fontWeight: FontWeight.w900,
+                        ),
+                      ),
+                      Text(
+                        '${u.email} · ${u.role.label}',
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: AppColors.muted,
+                        ),
+                      ),
+                    ],
                   ),
-                  Text(
-                    '${u.email} · ${u.role.label}',
+                ),
+              ),
+              StatusChip(u.status),
+              const SizedBox(width: 8),
+              if (protected != null)
+                Semantics(
+                  container: true,
+                  label: '$protected: ${u.name}',
+                  excludeSemantics: true,
+                  child: Text(
+                    protected,
                     style: theme.textTheme.bodySmall?.copyWith(
                       color: AppColors.muted,
                     ),
                   ),
-                ],
-              ),
-            ),
-          ),
-          StatusChip(u.status),
-          const SizedBox(width: 8),
-          if (protected != null)
-            Semantics(
-              container: true,
-              label: '$protected: ${u.name}',
-              excludeSemantics: true,
-              child: Text(
-                protected,
-                style: theme.textTheme.bodySmall?.copyWith(
-                  color: AppColors.muted,
+                )
+              else
+                LabeledButton(
+                  text: suspended ? 'Reactivar' : 'Suspender',
+                  label: '${suspended ? 'Reactivar' : 'Suspender'} a ${u.name}',
+                  filled: suspended,
+                  onPressed: _busy ? null : _toggle,
                 ),
-              ),
-            )
-          else
-            LabeledButton(
-              text: suspended ? 'Reactivar' : 'Suspender',
-              label: '${suspended ? 'Reactivar' : 'Suspender'} a ${u.name}',
-              filled: suspended,
-              onPressed: _busy ? null : _toggle,
-            ),
+            ],
+          ),
         ],
       ),
     );

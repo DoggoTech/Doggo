@@ -1,10 +1,13 @@
 import 'dart:async';
+import 'dart:convert';
+import 'dart:typed_data';
 
 import 'package:latlong2/latlong.dart';
 
 import '../models/admin.dart';
 import '../models/availability.dart';
 import '../contact_filter.dart';
+import '../location_privacy.dart';
 import '../models/booking.dart';
 import '../models/contact_info.dart';
 import '../models/dog.dart';
@@ -771,6 +774,9 @@ class DemoRepository implements Repository {
 
   final _adminActions = <AdminAction>[];
 
+  /// Ubicación exacta de cada cuidador: privada, nunca sale en el mapa.
+  final _exactLocations = <String, LatLng>{};
+
   _DemoUser? _userById(String id) {
     for (final u in _users.values) {
       if (u.profile.id == id) return u;
@@ -782,7 +788,9 @@ class DemoRepository implements Repository {
   /// suspendidos) con al menos un servicio.
   bool _isVisible(SitterSummary s) {
     final status = _userById(s.id)?.profile.status ?? UserStatus.approved;
-    return status == UserStatus.approved && s.services.isNotEmpty;
+    return status == UserStatus.approved &&
+        s.services.isNotEmpty &&
+        s.locationConfirmed;
   }
 
   AdminUserRow _row(Profile p) => AdminUserRow(
@@ -857,6 +865,7 @@ class DemoRepository implements Repository {
         location: const LatLng(4.6533, -74.0836),
         radiusKm: 5,
         services: const {},
+        locationConfirmed: false,
       ),
     );
   }
@@ -883,36 +892,20 @@ class DemoRepository implements Repository {
     if (target.status != UserStatus.pendingReview) {
       throw const ValidationFailure('Ese cuidador ya no está en revisión.');
     }
+    // Aprobar es verificar: el admin ya revisó documento y selfie.
     _updateProfile(
       target.copyWith(
         status: approve ? UserStatus.approved : UserStatus.suspended,
+        verified: approve,
       ),
     );
     if (approve) {
       // Pasa al mapa con lo que haya preparado (servicios, horario, bio).
       final sitter = _sitterOf(target);
       _pendingSitters.remove(target.id);
-      _sitters.add(sitter.copyWith(verified: target.verified));
+      _sitters.add(sitter.copyWith(verified: true));
     }
     _log(approve ? 'approve_sitter' : 'reject_sitter', target);
-  }
-
-  @override
-  Future<void> setVerified(String userId, bool verified) async {
-    await _latency();
-    final target = _assertCanModerate(userId);
-    if (target.role != UserRole.sitter) {
-      throw const ValidationFailure('Ese usuario no es cuidador.');
-    }
-    _updateProfile(target.copyWith(verified: verified));
-    final i = _sitters.indexWhere((s) => s.id == userId);
-    if (i >= 0) _sitters[i] = _sitters[i].copyWith(verified: verified);
-    if (_pendingSitters.containsKey(userId)) {
-      _pendingSitters[userId] = _pendingSitters[userId]!.copyWith(
-        verified: verified,
-      );
-    }
-    _log(verified ? 'verify_sitter' : 'unverify_sitter', target);
   }
 
   @override
@@ -989,9 +982,13 @@ class DemoRepository implements Repository {
   Future<void> setUserSuspended(String userId, bool suspended) async {
     await _latency();
     final target = _assertCanModerate(userId);
+    // Reactivar a un cuidador lo deja aprobado, y aprobado es verificado.
     _updateProfile(
       target.copyWith(
         status: suspended ? UserStatus.suspended : UserStatus.approved,
+        verified: !suspended && target.role == UserRole.sitter
+            ? true
+            : target.verified,
       ),
     );
     _log(suspended ? 'suspend_user' : 'reactivate_user', target);
@@ -1005,6 +1002,58 @@ class DemoRepository implements Repository {
         ? [..._adminActions]
         : _adminActions.where((a) => a.adminId == me.id).toList();
     return list..sort((a, b) => b.createdAt.compareTo(a.createdAt));
+  }
+
+  @override
+  Future<void> saveMyServiceArea({
+    required LatLng exact,
+    required String neighborhood,
+    required int radiusKm,
+  }) async {
+    await _latency();
+    final me = _requireSitter();
+    final name = neighborhood.trim();
+    if (name.isEmpty || name.length > 60) {
+      throw const ValidationFailure('Escribe tu barrio (máx. 60 caracteres).');
+    }
+    if (containsContactInfo(name)) {
+      throw const ValidationFailure(contactInfoMessage);
+    }
+    if (radiusKm < 1 || radiusKm > 20) {
+      throw const ValidationFailure('El radio debe estar entre 1 y 20 km.');
+    }
+    if (exact.latitude.abs() > 90 || exact.longitude.abs() > 180) {
+      throw const ValidationFailure('Esa ubicación no es válida.');
+    }
+    await fetchMySitterProfile();
+    _exactLocations[me.id] = exact;
+    _updateMySitter(
+      (s) => s.copyWith(
+        location: approximateLocation(me.id, exact),
+        neighborhood: name,
+        radiusKm: radiusKm,
+        locationConfirmed: true,
+      ),
+    );
+  }
+
+  @override
+  Future<void> saveMyPhoto(Uint8List bytes, String mimeType) async {
+    await _latency();
+    _requireSitter();
+    const allowed = {'image/jpeg', 'image/png', 'image/webp'};
+    if (!allowed.contains(mimeType)) {
+      throw const ValidationFailure('La foto debe ser JPG, PNG o WEBP.');
+    }
+    if (bytes.isEmpty || bytes.length > 2 * 1024 * 1024) {
+      throw const ValidationFailure('La foto puede pesar hasta 2 MB.');
+    }
+    await fetchMySitterProfile();
+    // En el modo demo la foto queda en memoria; con Supabase va al bucket `avatars`.
+    _updateMySitter(
+      (s) =>
+          s.copyWith(avatarUrl: 'data:$mimeType;base64,${base64Encode(bytes)}'),
+    );
   }
 
   /// El cuidador con sesión (rol sitter, aunque esté en revisión).
@@ -1037,6 +1086,7 @@ class DemoRepository implements Repository {
         location: const LatLng(4.6533, -74.0836),
         radiusKm: 5,
         services: const {},
+        locationConfirmed: false,
       ),
     );
   }
@@ -1177,6 +1227,7 @@ const _demoSitters = <SitterSummary>[
     bio: 'Estudiante de zootecnia. Hospedaje familiar cerca del parque.',
     location: LatLng(4.63964, -74.08632),
     radiusKm: 3,
+    verified: true,
     ratingAvg: 4.2,
     ratingCount: 6,
     avatarUrl: 'https://i.pravatar.cc/300?img=15',
@@ -1189,6 +1240,7 @@ const _demoSitters = <SitterSummary>[
     bio: 'Amante de los perros pequeños. Visitas a domicilio y guardería.',
     location: LatLng(4.74080, -74.09208),
     radiusKm: 5,
+    verified: true,
     ratingAvg: 4.5,
     ratingCount: 12,
     avatarUrl: 'https://i.pravatar.cc/300?img=45',
@@ -1231,6 +1283,7 @@ const _demoSitters = <SitterSummary>[
     bio: 'Corredor y ciclista: ideal para perros con mucha energía.',
     location: LatLng(4.66845, -74.14328),
     radiusKm: 8,
+    verified: true,
     ratingAvg: 3.8,
     ratingCount: 5,
     avatarUrl: 'https://i.pravatar.cc/300?img=59',
@@ -1243,6 +1296,7 @@ const _demoSitters = <SitterSummary>[
     bio: 'Cuido perros senior y con necesidades especiales.',
     location: LatLng(4.69750, -74.11086),
     radiusKm: 4,
+    verified: true,
     ratingAvg: 4.7,
     ratingCount: 14,
     avatarUrl: 'https://i.pravatar.cc/300?img=44',
@@ -1255,6 +1309,7 @@ const _demoSitters = <SitterSummary>[
     bio: 'Apartamento en el centro. Paseos y guardería de día.',
     location: LatLng(4.59586, -74.07507),
     radiusKm: 3,
+    verified: true,
     avatarUrl: 'https://i.pravatar.cc/300?img=68',
     services: {ServiceType.walk: 21000, ServiceType.daycare: 50000},
   ),
