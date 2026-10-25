@@ -208,10 +208,19 @@ export async function pickWhen(page: Page, day = 'Mañana', hour = '9:00') {
 }
 
 
-/** Cambia de cuenta con el panel "Modo demo" sin perder los datos en memoria. */
+/**
+ * Cambia de cuenta con el panel "Modo demo" sin perder los datos en memoria, y
+ * espera a que cargue la navegación de la cuenta nueva (antes de eso, la app
+ * todavía está redirigiendo y una navegación inmediata se perdería).
+ */
 export async function switchDemo(page: Page, role: 'Dueño' | 'Cuidador' | 'Administrador' | 'Superadministrador') {
+  const firstTab = { Dueño: 'Explorar', Cuidador: 'Solicitudes', Administrador: 'Aprobaciones', Superadministrador: 'Aprobaciones' }[role];
   await tab(page, 'Perfil').click();
-  await btn(page, `Demo: ${role}`).click();
+  const demo = btn(page, `Demo: ${role}`);
+  await scrollUntil(page, demo); // el panel demo está al final del perfil
+  await demo.dispatchEvent('click');
+  await expect(tab(page, firstTab)).toBeVisible();
+  await expect(tab(page, 'Perfil')).toBeVisible();
 }
 
 /** Desde el mapa del dueño, reserva un paseo con Carlos Cuidador (mañana a las 9:00). */
@@ -225,11 +234,21 @@ export async function bookWithCarlos(page: Page) {
   await expect(pins(page).first()).toBeAttached();
 }
 
-/** Desplaza la lista con la rueda hasta que aparezca el elemento (Flutter construye solo lo visible). */
+/**
+ * Desplaza la lista con la rueda hasta que aparezca el elemento (Flutter
+ * construye solo lo visible). Alterna el punto donde gira la rueda: si cae
+ * sobre un campo de texto de varias líneas, ese campo se queda con el gesto.
+ */
 export async function scrollUntil(page: Page, target: Locator) {
   const vp = page.viewportSize()!;
-  for (let i = 0; i < 15 && (await target.count()) === 0; i++) {
-    await page.mouse.move(vp.width / 2, vp.height / 2);
+  const spots = [
+    [vp.width / 2, vp.height / 2],
+    [vp.width / 2, vp.height * 0.25],
+    [vp.width / 2, vp.height * 0.75],
+  ];
+  for (let i = 0; i < 18 && (await target.count()) === 0; i++) {
+    const [x, y] = spots[i % spots.length];
+    await page.mouse.move(x, y);
     await page.mouse.wheel(0, 350);
     await page.waitForTimeout(150);
   }

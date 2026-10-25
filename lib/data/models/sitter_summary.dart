@@ -45,12 +45,13 @@ class SitterSummary {
     WeeklyAvailability? availability,
     double? ratingAvg,
     int? ratingCount,
+    String? bio,
   }) {
     return SitterSummary(
       id: id,
       name: name,
       neighborhood: neighborhood,
-      bio: bio,
+      bio: bio ?? this.bio,
       location: location,
       radiusKm: radiusKm,
       services: services ?? this.services,

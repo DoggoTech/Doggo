@@ -4,6 +4,7 @@ import 'package:doggo/data/models/booking.dart';
 import 'package:doggo/data/models/contact_info.dart';
 import 'package:doggo/data/models/dog.dart';
 import 'package:doggo/data/models/profile.dart';
+import 'package:doggo/data/models/report.dart';
 import 'package:doggo/data/models/service_type.dart';
 import 'package:doggo/data/pricing.dart';
 import 'package:doggo/data/repositories/repository.dart';
@@ -401,6 +402,57 @@ void main() {
       await r.saveMyPrivateData(const PrivateData(phone: '+57 311 222 3344', address: 'Calle 1'));
       expect((await r.fetchMyPrivateData()).phone, '+57 311 222 3344');
       expect(() => r.saveMyPrivateData(const PrivateData(phone: 'llámame')), throwsA(isA<ValidationFailure>()));
+    });
+  });
+
+  group('seguridad: reportes y bio', () {
+    late DemoRepository r;
+    setUp(() async {
+      r = DemoRepository();
+      await r.signIn(email: 'dueno@doggo.app', password: demoPassword);
+    });
+
+    test('un dueño reporta a un cuidador', () async {
+      await r.createReport(reportedUserId: laura, reason: ReportReason.fakeProfile, comment: 'Fotos falsas');
+    });
+
+    test('no se puede reportar a uno mismo', () async {
+      expect(
+        () => r.createReport(reportedUserId: 'demo-owner', reason: ReportReason.other),
+        throwsA(isA<ValidationFailure>()),
+      );
+    });
+
+    test('con reserva asociada, ambos deben participar en ella', () async {
+      final b = await r.createBooking(
+        sitterId: 'demo-sitter',
+        dogId: rocky,
+        service: ServiceType.walk,
+        startAt: tomorrow9,
+        endAt: tomorrow9.add(const Duration(hours: 1)),
+      );
+      await r.createReport(reportedUserId: 'demo-sitter', bookingId: b.id, reason: ReportReason.offPlatformPayment);
+      expect(
+        () => r.createReport(reportedUserId: laura, bookingId: b.id, reason: ReportReason.other),
+        throwsA(isA<ValidationFailure>()),
+      );
+    });
+
+    test('un admin no puede reportar', () async {
+      await r.signOut();
+      await r.signIn(email: 'admin@doggo.app', password: demoPassword);
+      expect(
+        () => r.createReport(reportedUserId: laura, reason: ReportReason.other),
+        throwsA(isA<ValidationFailure>()),
+      );
+    });
+
+    test('el cuidador edita su bio; con teléfono se rechaza', () async {
+      await r.signOut();
+      await r.signIn(email: 'cuidador@doggo.app', password: demoPassword);
+      await r.saveMyBio('Paseos largos por el parque.');
+      expect((await r.fetchSitter('demo-sitter'))!.bio, 'Paseos largos por el parque.');
+      expect(() => r.saveMyBio('Escríbeme al 300 111 2233'), throwsA(isA<ValidationFailure>()));
     });
   });
 

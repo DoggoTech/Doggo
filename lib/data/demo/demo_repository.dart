@@ -8,6 +8,7 @@ import '../models/booking.dart';
 import '../models/contact_info.dart';
 import '../models/dog.dart';
 import '../models/profile.dart';
+import '../models/report.dart';
 import '../models/review.dart';
 import '../models/service_type.dart';
 import '../models/sitter_summary.dart';
@@ -101,6 +102,7 @@ class DemoRepository implements Repository {
   ];
   final _bookings = <Booking>[];
   final _reviews = [..._demoReviews];
+  final _reports = <Report>[];
 
   /// Datos privados (teléfono, dirección): solo los ve el dueño de los datos
   /// y la contraparte de una reserva `accepted`.
@@ -665,6 +667,80 @@ class DemoRepository implements Repository {
       );
     }
     _notifyBookings();
+  }
+
+  @override
+  Future<void> createReport({
+    required String reportedUserId,
+    required ReportReason reason,
+    String? bookingId,
+    String? comment,
+  }) async {
+    await _latency();
+    final me = _current;
+    if (me == null ||
+        !me.role.isSelectable ||
+        me.status != UserStatus.approved) {
+      throw const ValidationFailure('Tu cuenta no puede enviar reportes.');
+    }
+    if (reportedUserId == me.id) {
+      throw const ValidationFailure('No puedes reportarte a ti mismo.');
+    }
+    if (bookingId != null &&
+        !_bookings.any(
+          (b) =>
+              b.id == bookingId &&
+              ((b.ownerId == me.id && b.sitterId == reportedUserId) ||
+                  (b.sitterId == me.id && b.ownerId == reportedUserId)),
+        )) {
+      throw const ValidationFailure('Esa reserva no es entre ustedes dos.');
+    }
+    final text = comment?.trim();
+    if (text != null && text.length > 1000) {
+      throw const ValidationFailure(
+        'El comentario puede tener hasta 1000 caracteres.',
+      );
+    }
+    _reports.add(
+      Report(
+        id: 'demo-report-${_nextId++}',
+        reporterId: me.id,
+        reporterName: me.fullName,
+        reportedUserId: reportedUserId,
+        reportedName: _nameOf(reportedUserId),
+        bookingId: bookingId,
+        reason: reason,
+        comment: (text == null || text.isEmpty) ? null : text,
+        status: ReportStatus.open,
+        createdAt: _now(),
+      ),
+    );
+  }
+
+  String _nameOf(String userId) {
+    for (final u in _users.values) {
+      if (u.profile.id == userId) return u.profile.fullName;
+    }
+    for (final s in _sitters) {
+      if (s.id == userId) return s.name;
+    }
+    return 'Usuario';
+  }
+
+  @override
+  Future<void> saveMyBio(String bio) async {
+    await _latency();
+    final me = _requireSitter();
+    final text = bio.trim();
+    if (text.length > 600) {
+      throw const ValidationFailure('La bio puede tener hasta 600 caracteres.');
+    }
+    if (containsContactInfo(text)) {
+      throw const ValidationFailure(contactInfoMessage);
+    }
+    await fetchMySitterProfile();
+    _updateMySitter((s) => s.copyWith(bio: text));
+    _setCurrent(me.copyWith(bio: text));
   }
 
   /// El cuidador con sesión (rol sitter, aunque esté en revisión).

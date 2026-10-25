@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { enterAsOwner, goToLogin, login, openApp, pin, pins, selectService, tab, tiles } from './helpers';
+import { enterAsOwner, goToLogin, login, openApp, pin, pins, selectService, switchDemo, tab, tiles } from './helpers';
 
 test.describe('mapa del dueño', () => {
   test('muestra un pin por cuidador aprobado, con el precio del paseo', async ({ page }) => {
@@ -35,8 +35,7 @@ test.describe('mapa del dueño', () => {
     await page.getByRole('button', { name: 'Crear cuenta' }).last().click();
     await expect(tab(page, 'Solicitudes')).toBeVisible();
 
-    await tab(page, 'Perfil').click();
-    await page.getByRole('button', { name: 'Demo: Dueño' }).click();
+    await switchDemo(page, 'Dueño');
     await expect(pins(page).first()).toBeAttached({ timeout: 15_000 });
     await expect(pins(page)).toHaveCount(11);
     await expect(pin(page, 'Sitter Nuevo')).toHaveCount(0);

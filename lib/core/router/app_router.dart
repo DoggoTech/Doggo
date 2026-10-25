@@ -8,6 +8,7 @@ import '../../features/auth/onboarding_screen.dart';
 import '../../features/auth/register_screen.dart';
 import '../../features/auth/splash_screen.dart';
 import '../../features/home/home_screen.dart';
+import '../../features/safety/safety_pages.dart';
 import '../../features/sitter_profile/sitter_profile_screen.dart';
 
 abstract final class Routes {
@@ -16,6 +17,9 @@ abstract final class Routes {
   static const login = '/login';
   static const register = '/register';
   static const home = '/home';
+  static const safety = '/safety';
+  static const terms = '/terms';
+  static const privacy = '/privacy';
 }
 
 final routerProvider = Provider<GoRouter>((ref) {
@@ -32,8 +36,13 @@ final routerProvider = Provider<GoRouter>((ref) {
       final signedIn = profile != null;
       final path = state.matchedLocation;
       final isGuestRoute = path == Routes.login || path == Routes.register;
+      // Términos y privacidad se leen antes de crear la cuenta.
       final isPublic =
-          isGuestRoute || path == Routes.splash || path == Routes.onboarding;
+          isGuestRoute ||
+          path == Routes.splash ||
+          path == Routes.onboarding ||
+          path == Routes.terms ||
+          path == Routes.privacy;
       if (!signedIn && !isPublic) return Routes.login;
       if (signedIn && isGuestRoute) return Routes.home;
       return null;
@@ -58,6 +67,18 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: Routes.home,
         pageBuilder: (context, state) => _fade(state, const HomeScreen()),
+      ),
+      GoRoute(
+        path: Routes.safety,
+        builder: (context, state) => const SafetyScreen(),
+      ),
+      GoRoute(
+        path: Routes.terms,
+        builder: (context, state) => const TermsScreen(),
+      ),
+      GoRoute(
+        path: Routes.privacy,
+        builder: (context, state) => const PrivacyScreen(),
       ),
       GoRoute(
         path: '/sitter/:id',

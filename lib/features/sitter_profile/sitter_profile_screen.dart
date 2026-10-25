@@ -11,6 +11,7 @@ import '../../data/models/sitter_summary.dart';
 import '../../data/providers.dart';
 import '../booking/booking_sheet.dart';
 import '../map/sitter_list.dart';
+import '../safety/report_sheet.dart';
 import 'sitter_providers.dart';
 
 class SitterProfileScreen extends ConsumerWidget {
@@ -21,9 +22,26 @@ class SitterProfileScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final sitter = ref.watch(sitterProvider(sitterId));
-    final isOwner = ref.watch(authStateProvider).value?.role == UserRole.owner;
+    final me = ref.watch(authStateProvider).value;
+    final isOwner = me?.role == UserRole.owner;
+    // Dueños y cuidadores pueden reportar (no a sí mismos; los admin moderan).
+    final canReport = me != null && me.role.isSelectable && me.id != sitterId;
     return Scaffold(
-      appBar: AppBar(title: const Text('Perfil del cuidador')),
+      appBar: AppBar(
+        title: const Text('Perfil del cuidador'),
+        actions: [
+          if (canReport && sitter.value != null)
+            IconButton(
+              tooltip: 'Reportar a ${sitter.value!.name}',
+              icon: const Icon(Icons.flag_outlined),
+              onPressed: () => showReportSheet(
+                context,
+                userId: sitterId,
+                userName: sitter.value!.name,
+              ),
+            ),
+        ],
+      ),
       body: sitter.when(
         loading: () => const Center(child: CircularProgressIndicator()),
         error: (_, _) => _Message(
@@ -43,9 +61,24 @@ class SitterProfileScreen extends ConsumerWidget {
                   constraints: const BoxConstraints(maxWidth: 720),
                   child: Padding(
                     padding: const EdgeInsets.fromLTRB(20, 8, 20, 16),
-                    child: FilledButton(
-                      onPressed: () => showBookingSheet(context, sitter.value!),
-                      child: const Text('Reservar'),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        FilledButton(
+                          onPressed: () =>
+                              showBookingSheet(context, sitter.value!),
+                          child: const Text('Reservar'),
+                        ),
+                        const SizedBox(height: 6),
+                        const Text(
+                          'Paga y coordina solo dentro de Doggo.',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: AppColors.muted,
+                          ),
+                        ),
+                      ],
                     ),
                   ),
                 ),

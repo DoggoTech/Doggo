@@ -1,12 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
+import '../../core/router/app_router.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_theme.dart';
 import '../../data/demo/demo_repository.dart';
 import '../../data/models/profile.dart';
 import '../../data/providers.dart';
 import '../../data/repositories/repository.dart';
+import 'bio_card.dart';
 import 'private_data_card.dart';
 
 class ProfileScreen extends ConsumerStatefulWidget {
@@ -93,6 +96,39 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
           ),
         ),
         const SizedBox(height: 16),
+        // Arriba a propósito: es lo que más usan quienes prueban la demo.
+        if (repo is DemoRepository) ...[
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(AppTheme.radius),
+              boxShadow: AppTheme.softShadow,
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Text(
+                  'Modo demo: cambiar de rol',
+                  style: theme.textTheme.titleMedium,
+                ),
+                const SizedBox(height: 12),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: [
+                    for (final r in DemoRepository.demoAccountByRole.keys)
+                      OutlinedButton(
+                        onPressed: () => _demoSwitch(r),
+                        child: Text('Demo: ${r.label}'),
+                      ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 16),
+        ],
         if (p.role.isSelectable) ...[
           Container(
             padding: const EdgeInsets.all(16),
@@ -130,36 +166,46 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
           const PrivateDataCard(),
           const SizedBox(height: 16),
         ],
-        if (repo is DemoRepository)
-          Container(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(AppTheme.radius),
-              boxShadow: AppTheme.softShadow,
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Text(
-                  'Modo demo: cambiar de rol',
-                  style: theme.textTheme.titleMedium,
-                ),
-                const SizedBox(height: 12),
-                Wrap(
-                  spacing: 8,
-                  runSpacing: 8,
-                  children: [
-                    for (final r in DemoRepository.demoAccountByRole.keys)
-                      OutlinedButton(
-                        onPressed: () => _demoSwitch(r),
-                        child: Text('Demo: ${r.label}'),
-                      ),
-                  ],
-                ),
-              ],
-            ),
+        if (p.role == UserRole.sitter) ...[
+          const BioCard(),
+          const SizedBox(height: 16),
+        ],
+        Container(
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(AppTheme.radius),
+            boxShadow: AppTheme.softShadow,
           ),
+          child: Column(
+            children: [
+              ListTile(
+                leading: const Icon(
+                  Icons.shield_outlined,
+                  color: AppColors.primary,
+                ),
+                title: const Text('Seguridad y consejos'),
+                onTap: () => context.push(Routes.safety),
+              ),
+              ListTile(
+                leading: const Icon(
+                  Icons.description_outlined,
+                  color: AppColors.primary,
+                ),
+                title: const Text('Términos y condiciones'),
+                onTap: () => context.push(Routes.terms),
+              ),
+              ListTile(
+                leading: const Icon(
+                  Icons.lock_outline_rounded,
+                  color: AppColors.primary,
+                ),
+                title: const Text('Política de privacidad'),
+                onTap: () => context.push(Routes.privacy),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 16),
         const SizedBox(height: 24),
         FilledButton(
           onPressed: () => ref.read(repositoryProvider).signOut(),

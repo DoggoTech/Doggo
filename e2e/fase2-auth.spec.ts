@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { goToLogin, login, tab, texto, typeInto } from './helpers';
+import { goToLogin, login, scrollUntil, tab, texto, typeInto } from './helpers';
 
 test.describe('login por rol', () => {
   const cases = [
@@ -42,6 +42,7 @@ test('cerrar sesión vuelve al login y protege /home', async ({ page }) => {
   await goToLogin(page);
   await page.getByRole('button', { name: 'Probar demo' }).click();
   await tab(page, 'Perfil').click();
+  await scrollUntil(page, page.getByRole('button', { name: 'Cerrar sesión' }));
   await page.getByRole('button', { name: 'Cerrar sesión' }).click();
   await expect(page.getByText('Iniciar sesión')).toBeVisible();
   await expect(tab(page, 'Perfil')).toHaveCount(0);

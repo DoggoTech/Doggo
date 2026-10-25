@@ -9,6 +9,7 @@ import '../../data/models/profile.dart';
 import '../../data/providers.dart';
 import '../../data/repositories/repository.dart';
 import '../bookings/bookings_providers.dart';
+import '../safety/report_sheet.dart';
 import 'countdown.dart';
 import 'pending_review_view.dart';
 
@@ -194,7 +195,20 @@ class _RequestCardState extends ConsumerState<_RequestCard> {
             ),
           ),
           const SizedBox(height: 8),
-          ResponseCountdown(deadline: b.responseDeadline),
+          Row(
+            children: [
+              Expanded(child: ResponseCountdown(deadline: b.responseDeadline)),
+              TextButton(
+                onPressed: () => showReportSheet(
+                  context,
+                  userId: b.ownerId,
+                  userName: b.ownerName,
+                  bookingId: b.id,
+                ),
+                child: Text('Reportar a ${b.ownerName.split(' ').first}'),
+              ),
+            ],
+          ),
           const SizedBox(height: 14),
           Row(
             children: [
