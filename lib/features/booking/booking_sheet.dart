@@ -15,7 +15,7 @@ import '../../data/providers.dart';
 import '../../data/repositories/repository.dart';
 import '../../shared/widgets/pill.dart';
 import '../sitter_profile/sitter_providers.dart';
-import 'add_dog_dialog.dart';
+import '../dogs/dog_form_dialog.dart';
 
 /// Franja de horas de inicio que se ofrecen, en pasos de 30 min.
 const _firstMinute = 7 * 60;
@@ -105,7 +105,7 @@ class _BookingSheetState extends ConsumerState<_BookingSheet> {
   DateTime get _end => bookingEnd(_service, _start, amount: _amount);
 
   Future<void> _addDog() async {
-    final dog = await showAddDogDialog(context);
+    final dog = await showDogForm(context);
     if (dog != null && mounted) setState(() => _dogId = dog.id);
   }
 

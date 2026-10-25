@@ -3,7 +3,9 @@ import 'dart:async';
 import 'package:latlong2/latlong.dart';
 
 import '../models/availability.dart';
+import '../contact_filter.dart';
 import '../models/booking.dart';
+import '../models/contact_info.dart';
 import '../models/dog.dart';
 import '../models/profile.dart';
 import '../models/review.dart';
@@ -87,6 +89,7 @@ class DemoRepository implements Repository {
       name: 'Rocky',
       breed: 'Labrador',
       size: DogSize.large,
+      notes: 'Muy juguetón. Le dan miedo las motos.',
     ),
     const Dog(
       id: 'demo-dog-luna',
@@ -97,6 +100,20 @@ class DemoRepository implements Repository {
     ),
   ];
   final _bookings = <Booking>[];
+  final _reviews = [..._demoReviews];
+
+  /// Datos privados (teléfono, dirección): solo los ve el dueño de los datos
+  /// y la contraparte de una reserva `accepted`.
+  final _private = <String, PrivateData>{
+    'demo-owner': const PrivateData(
+      phone: '310 987 6543',
+      address: 'Calle 85 #15-30, Chicó',
+    ),
+    'demo-sitter': const PrivateData(
+      phone: '300 123 4567',
+      address: 'Carrera 7 #60-20, Chapinero',
+    ),
+  };
   final _bookingChanges = StreamController<void>.broadcast();
 
   /// Cuidadores aprobados (visibles en el mapa). Mutable: el cuidador edita
@@ -234,7 +251,7 @@ class DemoRepository implements Repository {
   @override
   Future<List<Review>> fetchReviews(String sitterId) async {
     await _latency();
-    final list = _demoReviews.where((r) => r.sitterId == sitterId).toList()
+    final list = _reviews.where((r) => r.sitterId == sitterId).toList()
       ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
     return list;
   }
@@ -252,27 +269,107 @@ class DemoRepository implements Repository {
     required String name,
     required DogSize size,
     String? breed,
+    String? notes,
   }) async {
     await _latency();
+    final me = _requireOwner();
+    final dog = _validDog(
+      Dog(
+        id: 'demo-dog-${_nextId++}',
+        ownerId: me.id,
+        name: name,
+        size: size,
+        breed: breed,
+        notes: notes,
+      ),
+    );
+    _dogs.add(dog);
+    return dog;
+  }
+
+  @override
+  Future<Dog> updateDog(Dog dog) async {
+    await _latency();
+    final me = _requireOwner();
+    final i = _dogs.indexWhere((d) => d.id == dog.id && d.ownerId == me.id);
+    if (i < 0) throw const ValidationFailure('Ese perro no existe.');
+    final updated = _validDog(
+      Dog(
+        id: dog.id,
+        ownerId: me.id,
+        name: dog.name,
+        size: dog.size,
+        breed: dog.breed,
+        notes: dog.notes,
+      ),
+    );
+    _dogs[i] = updated;
+    return updated;
+  }
+
+  @override
+  Future<void> deleteDog(String dogId) async {
+    await _latency();
+    final me = _requireOwner();
+    if (!_dogs.any((d) => d.id == dogId && d.ownerId == me.id)) {
+      throw const ValidationFailure('Ese perro no existe.');
+    }
+    if (_bookings.any((b) => b.dogId == dogId && b.status.isActive)) {
+      throw const ValidationFailure(
+        'No puedes borrar un perro con reservas activas.',
+      );
+    }
+    _dogs.removeWhere((d) => d.id == dogId);
+  }
+
+  Profile _requireOwner() {
     final me = _current;
     if (me == null || me.role != UserRole.owner) {
       throw const ValidationFailure('Solo los dueños pueden registrar perros.');
     }
-    final trimmed = name.trim();
-    if (trimmed.isEmpty || trimmed.length > 40) {
+    return me;
+  }
+
+  /// Normaliza y valida un perro con las mismas reglas que la base.
+  Dog _validDog(Dog d) {
+    final name = d.name.trim();
+    if (name.isEmpty || name.length > 40) {
       throw const ValidationFailure(
         'Escribe el nombre de tu perro (máx. 40 caracteres).',
       );
     }
-    final dog = Dog(
-      id: 'demo-dog-${_nextId++}',
-      ownerId: me.id,
-      name: trimmed,
-      size: size,
-      breed: (breed == null || breed.trim().isEmpty) ? null : breed.trim(),
+    final breed = d.breed?.trim();
+    final notes = d.notes?.trim();
+    if (notes != null && notes.length > 1000) {
+      throw const ValidationFailure(
+        'Las notas pueden tener hasta 1000 caracteres.',
+      );
+    }
+    if (notes != null && containsContactInfo(notes)) {
+      throw const ValidationFailure(contactInfoMessage);
+    }
+    return Dog(
+      id: d.id,
+      ownerId: d.ownerId,
+      name: name,
+      size: d.size,
+      breed: (breed == null || breed.isEmpty) ? null : breed,
+      notes: (notes == null || notes.isEmpty) ? null : notes,
     );
-    _dogs.add(dog);
-    return dog;
+  }
+
+  @override
+  Future<String?> fetchDogNotesForBooking(String bookingId) async {
+    await _latency();
+    final me = _current;
+    if (me == null) return null;
+    final b = _bookings.where((b) => b.id == bookingId).firstOrNull;
+    if (b == null) return null;
+    final isOwner = b.ownerId == me.id;
+    final isAcceptedSitter =
+        b.sitterId == me.id && b.status == BookingStatus.accepted;
+    if (!isOwner && !isAcceptedSitter) return null;
+    return _dogs.where((d) => d.id == b.dogId).firstOrNull?.notes;
   }
 
   @override
@@ -432,6 +529,142 @@ class DemoRepository implements Repository {
     _bookings[i] = updated;
     _notifyBookings();
     return updated;
+  }
+
+  @override
+  Future<Booking> cancelBooking(String bookingId) async {
+    await _latency();
+    _expireOverdue();
+    final me = _current;
+    final i = _bookings.indexWhere(
+      (b) => b.id == bookingId && b.ownerId == me?.id,
+    );
+    if (me == null || i < 0) {
+      throw const ValidationFailure('Esa reserva no existe.');
+    }
+    if (!_bookings[i].status.isActive) {
+      throw const ValidationFailure('Esta reserva ya no se puede cancelar.');
+    }
+    final updated = _bookings[i].copyWith(status: BookingStatus.cancelled);
+    _bookings[i] = updated;
+    _notifyBookings();
+    return updated;
+  }
+
+  @override
+  Future<ContactInfo?> fetchCounterpartContact(String bookingId) async {
+    await _latency();
+    final me = _current;
+    final b = _bookings.where((b) => b.id == bookingId).firstOrNull;
+    if (me == null || b == null || b.status != BookingStatus.accepted) {
+      return null;
+    }
+    if (b.ownerId != me.id && b.sitterId != me.id) return null;
+    final otherId = b.ownerId == me.id ? b.sitterId : b.ownerId;
+    final otherName = b.ownerId == me.id ? b.sitterName : b.ownerName;
+    final data = _private[otherId] ?? const PrivateData();
+    return ContactInfo(
+      name: otherName,
+      phone: data.phone,
+      address: data.address,
+    );
+  }
+
+  @override
+  Future<PrivateData> fetchMyPrivateData() async {
+    await _latency();
+    final me = _current;
+    if (me == null) return const PrivateData();
+    return _private[me.id] ?? const PrivateData();
+  }
+
+  @override
+  Future<void> saveMyPrivateData(PrivateData data) async {
+    await _latency();
+    final me = _current;
+    if (me == null) throw const ValidationFailure('Inicia sesión primero.');
+    final phone = data.phone?.trim();
+    final address = data.address?.trim();
+    if (phone != null &&
+        phone.isNotEmpty &&
+        !RegExp(r'^[0-9+() -]{7,20}$').hasMatch(phone)) {
+      throw const ValidationFailure(
+        'Escribe un teléfono válido (solo números, espacios y +).',
+      );
+    }
+    if (address != null && address.length > 200) {
+      throw const ValidationFailure(
+        'La dirección puede tener hasta 200 caracteres.',
+      );
+    }
+    _private[me.id] = PrivateData(
+      phone: (phone == null || phone.isEmpty) ? null : phone,
+      address: (address == null || address.isEmpty) ? null : address,
+    );
+  }
+
+  @override
+  Future<void> createReview({
+    required String bookingId,
+    required int rating,
+    String? comment,
+  }) async {
+    await _latency();
+    final me = _current;
+    final i = _bookings.indexWhere(
+      (b) => b.id == bookingId && b.ownerId == me?.id,
+    );
+    if (me == null || i < 0) {
+      throw const ValidationFailure('Esa reserva no existe.');
+    }
+    final b = _bookings[i];
+    if (b.status != BookingStatus.completed) {
+      throw const ValidationFailure(
+        'Solo puedes calificar reservas completadas.',
+      );
+    }
+    if (b.reviewed) {
+      throw const ValidationFailure('Ya calificaste esta reserva.');
+    }
+    if (rating < 1 || rating > 5) {
+      throw const ValidationFailure('Elige de 1 a 5 estrellas.');
+    }
+    final text = comment?.trim();
+    if (text != null && text.length > 500) {
+      throw const ValidationFailure(
+        'La reseña puede tener hasta 500 caracteres.',
+      );
+    }
+    if (text != null && containsContactInfo(text)) {
+      throw const ValidationFailure(contactInfoMessage);
+    }
+    final parts = me.fullName.trim().split(' ');
+    final author = parts.length > 1
+        ? '${parts.first} ${parts[1][0]}.'
+        : parts.first;
+    _reviews.add(
+      Review(
+        id: 'demo-review-${_nextId++}',
+        sitterId: b.sitterId,
+        authorName: author,
+        rating: rating,
+        comment: (text == null || text.isEmpty) ? null : text,
+        createdAt: _now(),
+      ),
+    );
+    _bookings[i] = b.copyWith(reviewed: true);
+    // Recalcula la calificación que muestran el mapa y el perfil.
+    final si = _sitters.indexWhere((s) => s.id == b.sitterId);
+    if (si >= 0) {
+      final s0 = _sitters[si];
+      final count = s0.ratingCount + 1;
+      final avg = ((s0.ratingAvg ?? 0) * s0.ratingCount + rating) / count;
+      _sitters[si] = s0.copyWith(
+        ratingAvg: double.parse(avg.toStringAsFixed(1)),
+        ratingCount: count,
+      );
+    }
+    _notifyBookings();
   }
 
   /// El cuidador con sesión (rol sitter, aunque esté en revisión).

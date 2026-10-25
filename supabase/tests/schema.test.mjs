@@ -298,6 +298,17 @@ describe('datos privados', () => {
       assert.equal(stranger.length, 0, 'otro cuidador no ve al perro');
     }));
 
+  test('un perro con reservas activas no se puede borrar', () =>
+    tx(async (t) => {
+      await book(t);
+      rejects(
+        await t.as(IDS.marcela, () => t.fails(`delete from dogs where id = $1`, [IDS.rocky])),
+        /dog_has_active_bookings/,
+      );
+      const [luna] = await t.q(`select id from dogs where name = 'Luna'`);
+      await t.as(IDS.marcela, () => t.q(`delete from dogs where id = $1`, [luna.id]));
+    }));
+
   test('se rechazan teléfonos, correos y enlaces en bio y notas', () =>
     tx(async (t) => {
       const bad = [

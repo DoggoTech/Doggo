@@ -43,6 +43,8 @@ class SitterSummary {
   SitterSummary copyWith({
     Map<ServiceType, int>? services,
     WeeklyAvailability? availability,
+    double? ratingAvg,
+    int? ratingCount,
   }) {
     return SitterSummary(
       id: id,
@@ -54,8 +56,8 @@ class SitterSummary {
       services: services ?? this.services,
       avatarUrl: avatarUrl,
       verified: verified,
-      ratingAvg: ratingAvg,
-      ratingCount: ratingCount,
+      ratingAvg: ratingAvg ?? this.ratingAvg,
+      ratingCount: ratingCount ?? this.ratingCount,
       availability: availability ?? this.availability,
     );
   }

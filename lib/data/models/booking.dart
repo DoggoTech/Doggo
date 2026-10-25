@@ -32,6 +32,7 @@ class Booking {
     required this.status,
     required this.createdAt,
     required this.responseDeadline,
+    this.reviewed = false,
   });
 
   final String id;
@@ -51,7 +52,10 @@ class Booking {
   /// Hasta cuándo puede aceptar o rechazar el cuidador.
   final DateTime responseDeadline;
 
-  Booking copyWith({BookingStatus? status}) {
+  /// El dueño ya dejó reseña de esta reserva.
+  final bool reviewed;
+
+  Booking copyWith({BookingStatus? status, bool? reviewed}) {
     return Booking(
       id: id,
       ownerId: ownerId,
@@ -67,6 +71,7 @@ class Booking {
       status: status ?? this.status,
       createdAt: createdAt,
       responseDeadline: responseDeadline,
+      reviewed: reviewed ?? this.reviewed,
     );
   }
 }

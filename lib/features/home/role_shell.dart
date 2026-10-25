@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 import '../../data/models/profile.dart';
 import '../../core/theme/app_colors.dart';
 import '../../shared/widgets/doggo_logo.dart';
+import '../bookings/owner_bookings_tab.dart';
+import '../dogs/dogs_tab.dart';
 import '../map/map_screen.dart';
 import '../sitter_dashboard/agenda_tab.dart';
 import '../sitter_dashboard/requests_tab.dart';
@@ -33,6 +35,8 @@ class _Tab {
 
 Widget _mapTab(BuildContext context) => const MapScreen();
 Widget _requestsTab(BuildContext context) => const RequestsTab();
+Widget _ownerBookingsTab(BuildContext context) => const OwnerBookingsTab();
+Widget _dogsTab(BuildContext context) => const DogsTab();
 Widget _agendaTab(BuildContext context) => const AgendaTab();
 Widget _servicesTab(BuildContext context) => const ServicesTab();
 
@@ -41,8 +45,8 @@ const _profileTab = _Tab('Perfil', Icons.person_rounded, '');
 const _tabsByRole = {
   UserRole.owner: [
     _Tab('Explorar', Icons.map_rounded, '', builder: _mapTab, fullBleed: true),
-    _Tab('Reservas', Icons.event_note_rounded, 'Tus reservas aparecerán aquí.'),
-    _Tab('Perros', Icons.pets_rounded, 'Registra a tus perros aquí.'),
+    _Tab('Reservas', Icons.event_note_rounded, '', builder: _ownerBookingsTab),
+    _Tab('Perros', Icons.pets_rounded, '', builder: _dogsTab),
     _profileTab,
   ],
   UserRole.sitter: [
@@ -86,6 +90,15 @@ class RoleShell extends StatefulWidget {
 
 class _RoleShellState extends State<RoleShell> {
   int _index = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    // Al entrar con otra cuenta, los avisos de la anterior no deben seguir.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) ScaffoldMessenger.of(context).clearSnackBars();
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
