@@ -669,11 +669,28 @@ void main() {
       expect((await r.fetchSitters()).any((s) => s.id == natalia), isFalse);
     });
 
-    test('la insignia Verificado se ve en el mapa', () async {
-      await r.setVerified(laura, false);
-      expect((await r.fetchSitter(laura))!.verified, isFalse);
-      await r.setVerified(laura, true);
-      expect((await r.fetchSitter(laura))!.verified, isTrue);
+    test('aprobar da la insignia Verificado en el mapa', () async {
+      expect(
+        (await r.fetchPendingSitters())
+            .singleWhere((p) => p.user.id == natalia)
+            .user
+            .verified,
+        isFalse,
+      );
+      await r.setSitterApproval(natalia, approve: true);
+      expect((await r.fetchSitter(natalia))!.verified, isTrue);
+      expect((await r.searchUsers(query: 'natalia')).single.verified, isTrue);
+    });
+
+    test('rechazar no verifica; reactivar después sí', () async {
+      await r.setSitterApproval(natalia, approve: false);
+      expect((await r.searchUsers(query: 'natalia')).single.verified, isFalse);
+      await r.setUserSuspended(natalia, false);
+      expect((await r.searchUsers(query: 'natalia')).single.verified, isTrue);
+    });
+
+    test('todos los cuidadores del mapa están verificados', () async {
+      expect((await r.fetchSitters()).every((s) => s.verified), isTrue);
     });
 
     test(
@@ -768,12 +785,12 @@ void main() {
     );
 
     test('auditoría: el admin ve lo suyo, el superadmin todo', () async {
-      await r.setVerified(laura, true);
+      await r.setSitterApproval(natalia, approve: true);
       await as('superadmin@doggo.app');
       await r.setUserSuspended('demo-owner', true);
       expect(await r.fetchAdminActions(), hasLength(2));
       await as('admin@doggo.app');
-      expect((await r.fetchAdminActions()).single.action, 'verify_sitter');
+      expect((await r.fetchAdminActions()).single.action, 'approve_sitter');
     });
 
     test('un dueño no puede usar el panel', () async {

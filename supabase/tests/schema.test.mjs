@@ -40,7 +40,7 @@ async function adminUser(t, email = 'admin@t.test', role = 'admin') {
 
 // ---------------------------------------------------------------------------
 describe('esquema y datos de ejemplo', () => {
-  test('el seed deja 10 cuidadores aprobados (algunos verificados) y 2 en revisión', () =>
+  test('el seed deja 10 cuidadores aprobados (todos verificados) y 2 en revisión', () =>
     tx(async (t) => {
       const rows = await t.q(
         `select status, count(*)::int n, sum(verified::int)::int v
@@ -48,8 +48,9 @@ describe('esquema y datos de ejemplo', () => {
       );
       const by = Object.fromEntries(rows.map((r) => [r.status, r]));
       assert.equal(by.approved.n, 10);
-      assert.ok(by.approved.v >= 3, 'hay verificados');
+      assert.equal(by.approved.v, 10, 'aprobado es verificado');
       assert.equal(by.pending_review.n, 2);
+      assert.equal(by.pending_review.v, 0);
     }));
 
   test('la ubicación del mapa está desplazada entre 200 y 300 m de la exacta', () =>
@@ -719,7 +720,6 @@ describe('administración y superadmin', () => {
     tx(async (t) => {
       const calls = [
         [`select admin_set_sitter_approval($1, true)`, [IDS.natalia]],
-        [`select admin_set_verified($1, true)`, [IDS.laura]],
         [`select admin_set_user_suspended($1, true)`, [IDS.laura]],
         [`select admin_search_users('a')`, []],
         [`select superadmin_set_admin($1, true)`, [IDS.laura]],
@@ -742,7 +742,6 @@ describe('administración y superadmin', () => {
       const sa = await adminUser(t, 'sa@t.test', 'superadmin');
       for (const target of [admin2, sa]) {
         rejects(await t.as(admin, () => t.fails(`select admin_set_user_suspended($1, true)`, [target])), /protected_user/);
-        rejects(await t.as(admin, () => t.fails(`select admin_set_verified($1, true)`, [target])), /protected_user|not_a_sitter/);
       }
       const rows = await t.q(`select status from profiles where id in ($1, $2)`, [admin2, sa]);
       assert.ok(rows.every((r) => r.status === 'approved'));
@@ -780,6 +779,18 @@ describe('administración y superadmin', () => {
       assert.equal((await t.q(`select role from profiles where id = $1`, [candidate]))[0].role, 'owner');
     }));
 
+  test('aprobar verifica, rechazar no, y reactivar a un rechazado lo verifica', () =>
+    tx(async (t) => {
+      const admin = await adminUser(t);
+      const flags = async (id) => ({ ...(await t.q(`select status, verified from profiles where id = $1`, [id]))[0] });
+      await t.as(admin, () => t.q(`select admin_set_sitter_approval($1, true)`, [IDS.natalia]));
+      assert.deepEqual(await flags(IDS.natalia), { status: 'approved', verified: true });
+      await t.as(admin, () => t.q(`select admin_set_sitter_approval($1, false)`, [IDS.ricardo]));
+      assert.deepEqual(await flags(IDS.ricardo), { status: 'suspended', verified: false });
+      await t.as(admin, () => t.q(`select admin_set_user_suspended($1, false)`, [IDS.ricardo]));
+      assert.deepEqual(await flags(IDS.ricardo), { status: 'approved', verified: true });
+    }));
+
   test('el superadmin suspende a un admin; un admin no puede', () =>
     tx(async (t) => {
       const sa = await adminUser(t, 'sa@t.test', 'superadmin');
@@ -801,14 +812,13 @@ describe('administración y superadmin', () => {
       const admin = await adminUser(t);
       await t.as(admin, async () => {
         await t.q(`select admin_set_sitter_approval($1, true)`, [IDS.natalia]);
-        await t.q(`select admin_set_verified($1, true)`, [IDS.natalia]);
         await t.q(`select admin_set_user_suspended($1, true, 'spam')`, [IDS.andres]);
         await t.q(`select admin_set_user_suspended($1, false)`, [IDS.andres]);
       });
       const log = await t.q(`select action, admin_id from admin_actions order by created_at, id`);
       assert.deepEqual(
         log.map((l) => l.action).sort(),
-        ['approve_sitter', 'reactivate_user', 'suspend_user', 'verify_sitter'],
+        ['approve_sitter', 'reactivate_user', 'suspend_user'],
       );
       assert.ok(log.every((l) => l.admin_id === admin));
     }));

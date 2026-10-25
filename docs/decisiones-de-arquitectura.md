@@ -42,7 +42,7 @@ original del producto.
 - **Horario semanal** del cuidador; el dueño solo ve horas dentro de él (franja 7:00–19:00, pasos de 30 min).
 - **Contacto** (teléfono y dirección) visible solo con la reserva **aceptada**, en ambos sentidos.
 - **Zona de servicio obligatoria**: sin ella el cuidador no sale en el mapa (avisos al cuidador y al admin).
-- **Aprobar ≠ Verificado**: aprobar lo pone en el mapa; "Verificado" es solo la insignia (documento y selfie revisados por fuera). La insignia se puede cambiar en Aprobaciones **y en Usuarios** (también después de aprobar).
+- **Aprobar = Verificar**: el admin revisa documento y selfie antes de aprobar; aprobar pone al cuidador en el mapa con la insignia "Verificado". No hay interruptor aparte: rechazar no verifica y reactivar a un cuidador lo deja aprobado y verificado. (Antes eran dos cosas; se unieron porque un "verificado" rechazado no tenía sentido).
 - **Ubicación en vivo** del dueño (seguimiento con `getPositionStream`), que se apaga al salir del mapa.
 - **Carlos Cuidador** (`cuidador@doggo.app`) sale en el mapa demo para recibir reservas.
 - Panel **"Modo demo"** arriba en el perfil para cambiar de rol sin perder datos.

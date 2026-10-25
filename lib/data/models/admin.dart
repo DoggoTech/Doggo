@@ -43,7 +43,7 @@ class AdminAction {
   final String adminId;
   final String adminName;
 
-  /// approve_sitter, reject_sitter, verify_sitter, unverify_sitter,
+  /// approve_sitter, reject_sitter,
   /// suspend_user, reactivate_user, resolve_report (mismos nombres que la base).
   final String action;
   final String targetUserId;

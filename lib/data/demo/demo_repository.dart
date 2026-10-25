@@ -892,36 +892,20 @@ class DemoRepository implements Repository {
     if (target.status != UserStatus.pendingReview) {
       throw const ValidationFailure('Ese cuidador ya no está en revisión.');
     }
+    // Aprobar es verificar: el admin ya revisó documento y selfie.
     _updateProfile(
       target.copyWith(
         status: approve ? UserStatus.approved : UserStatus.suspended,
+        verified: approve,
       ),
     );
     if (approve) {
       // Pasa al mapa con lo que haya preparado (servicios, horario, bio).
       final sitter = _sitterOf(target);
       _pendingSitters.remove(target.id);
-      _sitters.add(sitter.copyWith(verified: target.verified));
+      _sitters.add(sitter.copyWith(verified: true));
     }
     _log(approve ? 'approve_sitter' : 'reject_sitter', target);
-  }
-
-  @override
-  Future<void> setVerified(String userId, bool verified) async {
-    await _latency();
-    final target = _assertCanModerate(userId);
-    if (target.role != UserRole.sitter) {
-      throw const ValidationFailure('Ese usuario no es cuidador.');
-    }
-    _updateProfile(target.copyWith(verified: verified));
-    final i = _sitters.indexWhere((s) => s.id == userId);
-    if (i >= 0) _sitters[i] = _sitters[i].copyWith(verified: verified);
-    if (_pendingSitters.containsKey(userId)) {
-      _pendingSitters[userId] = _pendingSitters[userId]!.copyWith(
-        verified: verified,
-      );
-    }
-    _log(verified ? 'verify_sitter' : 'unverify_sitter', target);
   }
 
   @override
@@ -998,9 +982,13 @@ class DemoRepository implements Repository {
   Future<void> setUserSuspended(String userId, bool suspended) async {
     await _latency();
     final target = _assertCanModerate(userId);
+    // Reactivar a un cuidador lo deja aprobado, y aprobado es verificado.
     _updateProfile(
       target.copyWith(
         status: suspended ? UserStatus.suspended : UserStatus.approved,
+        verified: !suspended && target.role == UserRole.sitter
+            ? true
+            : target.verified,
       ),
     );
     _log(suspended ? 'suspend_user' : 'reactivate_user', target);
@@ -1239,6 +1227,7 @@ const _demoSitters = <SitterSummary>[
     bio: 'Estudiante de zootecnia. Hospedaje familiar cerca del parque.',
     location: LatLng(4.63964, -74.08632),
     radiusKm: 3,
+    verified: true,
     ratingAvg: 4.2,
     ratingCount: 6,
     avatarUrl: 'https://i.pravatar.cc/300?img=15',
@@ -1251,6 +1240,7 @@ const _demoSitters = <SitterSummary>[
     bio: 'Amante de los perros pequeños. Visitas a domicilio y guardería.',
     location: LatLng(4.74080, -74.09208),
     radiusKm: 5,
+    verified: true,
     ratingAvg: 4.5,
     ratingCount: 12,
     avatarUrl: 'https://i.pravatar.cc/300?img=45',
@@ -1293,6 +1283,7 @@ const _demoSitters = <SitterSummary>[
     bio: 'Corredor y ciclista: ideal para perros con mucha energía.',
     location: LatLng(4.66845, -74.14328),
     radiusKm: 8,
+    verified: true,
     ratingAvg: 3.8,
     ratingCount: 5,
     avatarUrl: 'https://i.pravatar.cc/300?img=59',
@@ -1305,6 +1296,7 @@ const _demoSitters = <SitterSummary>[
     bio: 'Cuido perros senior y con necesidades especiales.',
     location: LatLng(4.69750, -74.11086),
     radiusKm: 4,
+    verified: true,
     ratingAvg: 4.7,
     ratingCount: 14,
     avatarUrl: 'https://i.pravatar.cc/300?img=44',
@@ -1317,6 +1309,7 @@ const _demoSitters = <SitterSummary>[
     bio: 'Apartamento en el centro. Paseos y guardería de día.',
     location: LatLng(4.59586, -74.07507),
     radiusKm: 3,
+    verified: true,
     avatarUrl: 'https://i.pravatar.cc/300?img=68',
     services: {ServiceType.walk: 21000, ServiceType.daycare: 50000},
   ),

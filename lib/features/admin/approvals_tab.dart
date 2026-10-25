@@ -11,7 +11,7 @@ import '../map/sitter_list.dart';
 import 'admin_providers.dart';
 import 'admin_widgets.dart';
 
-/// Cuidadores en revisión: aprobar, rechazar y dar la insignia "Verificado".
+/// Cuidadores en revisión: aprobar (le da la insignia "Verificado") o rechazar.
 class ApprovalsTab extends ConsumerWidget {
   const ApprovalsTab({super.key});
 
@@ -155,33 +155,6 @@ class _PendingCardState extends ConsumerState<_PendingCard> {
                 color: s.locationConfirmed ? null : theme.colorScheme.error,
               ),
             ),
-          ),
-          const SizedBox(height: 8),
-          Row(
-            children: [
-              Semantics(
-                container: true,
-                label: 'Verificado: ${u.name}',
-                toggled: u.verified,
-                onTap: _busy
-                    ? null
-                    : () => _run(
-                        () => repo.setVerified(u.id, !u.verified),
-                        'Insignia actualizada',
-                      ),
-                excludeSemantics: true,
-                child: Switch(
-                  value: u.verified,
-                  onChanged: _busy
-                      ? null
-                      : (v) => _run(
-                          () => repo.setVerified(u.id, v),
-                          'Insignia actualizada',
-                        ),
-                ),
-              ),
-              const Text('Verificado (documento y selfie revisados)'),
-            ],
           ),
           const SizedBox(height: 8),
           Wrap(

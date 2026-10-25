@@ -129,22 +129,6 @@ class _UserRowState extends ConsumerState<_UserRow> {
     return null;
   }
 
-  Future<void> _setVerified(bool verified) async {
-    setState(() => _busy = true);
-    final messenger = ScaffoldMessenger.of(context);
-    try {
-      await ref.read(repositoryProvider).setVerified(widget.user.id, verified);
-      refreshAdminData(ref);
-      messenger.showSnackBar(
-        const SnackBar(content: Text('Insignia actualizada')),
-      );
-    } on ValidationFailure catch (e) {
-      messenger.showSnackBar(SnackBar(content: Text(e.message)));
-    } finally {
-      if (mounted) setState(() => _busy = false);
-    }
-  }
-
   Future<void> _toggle() async {
     final u = widget.user;
     final suspend = u.status != UserStatus.suspended;
@@ -233,25 +217,6 @@ class _UserRowState extends ConsumerState<_UserRow> {
                 ),
             ],
           ),
-          // La insignia se puede dar o quitar en cualquier momento, también
-          // después de aprobar (p. ej. cuando el cuidador envía su documento).
-          if (u.role == UserRole.sitter)
-            Row(
-              children: [
-                Semantics(
-                  container: true,
-                  label: 'Verificado: ${u.name}',
-                  toggled: u.verified,
-                  onTap: _busy ? null : () => _setVerified(!u.verified),
-                  excludeSemantics: true,
-                  child: Switch(
-                    value: u.verified,
-                    onChanged: _busy ? null : _setVerified,
-                  ),
-                ),
-                const Text('Verificado (documento y selfie revisados)'),
-              ],
-            ),
         ],
       ),
     );

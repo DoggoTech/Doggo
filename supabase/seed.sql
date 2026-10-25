@@ -51,13 +51,13 @@ from (values
   ('a1000000-0000-4000-8000-000000000001'::uuid, 'Veterinaria de profesión. Tu perro tendrá paseos largos y mucho cariño en Chapinero.', 4, 'approved', true,  47),
   ('a1000000-0000-4000-8000-000000000002'::uuid, 'Casa con patio grande en Usaquén. Experiencia con razas grandes y cachorros.', 6, 'approved', true,  12),
   ('a1000000-0000-4000-8000-000000000003'::uuid, 'Entrenadora canina certificada. Paseos con refuerzo positivo cerca de Cedritos.', 5, 'approved', true,  32),
-  ('a1000000-0000-4000-8000-000000000004'::uuid, 'Estudiante de zootecnia. Hospedaje familiar en Teusaquillo, cerca del parque.', 3, 'approved', false, 15),
-  ('a1000000-0000-4000-8000-000000000005'::uuid, 'Amante de los perros pequeños. Visitas a domicilio y guardería en Suba.', 5, 'approved', false, 45),
+  ('a1000000-0000-4000-8000-000000000004'::uuid, 'Estudiante de zootecnia. Hospedaje familiar en Teusaquillo, cerca del parque.', 3, 'approved', true,  15),
+  ('a1000000-0000-4000-8000-000000000005'::uuid, 'Amante de los perros pequeños. Visitas a domicilio y guardería en Suba.', 5, 'approved', true,  45),
   ('a1000000-0000-4000-8000-000000000006'::uuid, 'Tengo dos labradores y mucho espacio. Hospedaje nocturno en Kennedy.', 4, 'approved', true,  53),
   ('a1000000-0000-4000-8000-000000000007'::uuid, 'Peluquera canina con 8 años de experiencia. Baño y corte en el Chicó.', 6, 'approved', true,  25),
-  ('a1000000-0000-4000-8000-000000000008'::uuid, 'Corredor y ciclista: ideal para perros con mucha energía. Zona Fontibón.', 8, 'approved', false, 59),
-  ('a1000000-0000-4000-8000-000000000009'::uuid, 'Cuido perros senior y con necesidades especiales en Engativá.', 4, 'approved', false, 44),
-  ('a1000000-0000-4000-8000-000000000010'::uuid, 'Apartamento en La Candelaria. Paseos por el centro y guardería de día.', 3, 'approved', false, 68),
+  ('a1000000-0000-4000-8000-000000000008'::uuid, 'Corredor y ciclista: ideal para perros con mucha energía. Zona Fontibón.', 8, 'approved', true,  59),
+  ('a1000000-0000-4000-8000-000000000009'::uuid, 'Cuido perros senior y con necesidades especiales en Engativá.', 4, 'approved', true,  44),
+  ('a1000000-0000-4000-8000-000000000010'::uuid, 'Apartamento en La Candelaria. Paseos por el centro y guardería de día.', 3, 'approved', true,  68),
   ('a1000000-0000-4000-8000-000000000011'::uuid, 'Recién registrada: ofrezco paseos y guardería en Bosa.', 5, 'pending_review', false, 5),
   ('a1000000-0000-4000-8000-000000000012'::uuid, 'Recién registrado: visitas a domicilio en Restrepo.', 4, 'pending_review', false, 8)
 ) as v (id, bio, radius_km, status, verified, img)

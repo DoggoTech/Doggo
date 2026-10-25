@@ -133,16 +133,17 @@ test.describe('lista y selección', () => {
     await expect(page.getByRole('button', { name: 'Cerrar' })).toHaveCount(0);
   });
 
-  test('los verificados llevan insignia', async ({ page }) => {
+  test('todo cuidador del mapa lleva la insignia Verificado', async ({ page }) => {
     await enterAsOwner(page);
-    await pin(page, 'Laura Gómez').dispatchEvent('click');
-    await expect(page.getByRole('button', { name: 'Cerrar' })).toBeVisible();
-    await expect(page.getByText(/Laura Gómez\s*Verificado/)).toBeVisible();
-    await page.getByRole('button', { name: 'Cerrar' }).click();
-    // Julián no está verificado: su tarjeta no lleva la insignia.
-    await pin(page, 'Julián Castro').dispatchEvent('click');
-    await expect(page.getByText(/Julián Castro/).first()).toBeVisible();
-    await expect(page.getByText(/Julián Castro\s*Verificado/)).toHaveCount(0);
+    // Aprobar es verificar: cualquiera que salga en el mapa la tiene.
+    for (const name of ['Laura Gómez', 'Julián Castro']) {
+      await pin(page, name).dispatchEvent('click');
+      await expect(page.getByRole('button', { name: 'Cerrar' })).toBeVisible();
+      await expect(page.getByText(new RegExp(`${name}\\s*Verificado`))).toBeVisible();
+      await page.getByRole('button', { name: 'Cerrar' }).click();
+      // Que la tarjeta termine de cerrarse antes de abrir la siguiente.
+      await expect(page.getByRole('button', { name: 'Cerrar' })).toHaveCount(0);
+    }
   });
 });
 

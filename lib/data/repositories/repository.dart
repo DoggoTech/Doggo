@@ -156,11 +156,9 @@ abstract class Repository {
   /// Cuidadores en `pending_review` con su perfil completo.
   Future<List<PendingSitter>> fetchPendingSitters();
 
-  /// Aprobar (aparece en el mapa) o rechazar (queda suspendido).
+  /// Aprobar (aparece en el mapa con la insignia "Verificado") o rechazar
+  /// (queda suspendido).
   Future<void> setSitterApproval(String userId, {required bool approve});
-
-  /// Insignia "Verificado" de un cuidador.
-  Future<void> setVerified(String userId, bool verified);
 
   /// Reportes, del más reciente al más antiguo.
   Future<List<Report>> fetchReports();
