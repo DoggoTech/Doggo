@@ -1,4 +1,4 @@
-import { expect, Page } from '@playwright/test';
+import { expect, Locator, Page } from '@playwright/test';
 
 // PNG transparente de 1x1: reemplaza los tiles del mapa y las fotos externas
 // para que las pruebas no dependan de la red ni de terceros.
@@ -115,9 +115,18 @@ export async function selectService(page: Page, name: string) {
   await chip.click();
 }
 
-/** Desde el mapa (como dueño demo), abre el perfil de un cuidador por su pin. */
+/** Entra como dueño demo y abre el perfil de un cuidador por su pin. */
 export async function openSitterProfile(page: Page, name: string) {
   await enterAsOwner(page);
+  await openProfileFromMap(page, name);
+}
+
+/**
+ * Con la app ya abierta en el mapa, abre el perfil de un cuidador. No recarga
+ * la página: en el modo demo recargar borra todo lo hecho.
+ */
+export async function openProfileFromMap(page: Page, name: string) {
+  await expect(pin(page, name)).toBeAttached({ timeout: 15_000 });
   await pin(page, name).dispatchEvent('click');
   await page.getByRole('button', { name: 'Ver perfil' }).click();
   await expect(page.getByText('Perfil del cuidador')).toBeVisible();
@@ -133,3 +142,96 @@ export async function goToHash(page: Page, route: string) {
  * (aria-label) del grupo que lo contiene según la estructura; da igual cuál.
  */
 export const seen = (page: Page, t: string | RegExp) => page.getByText(t).or(page.getByLabel(t)).first();
+
+// ---- Hoja de reserva ----
+export const btn = (page: Page, name: string | RegExp) =>
+  page.getByRole('button', { name, exact: typeof name === 'string' });
+
+export async function openSheet(page: Page, sitter: string) {
+  await enterAsOwner(page);
+  await openSheetFromMap(page, sitter);
+}
+
+/** Con la app ya abierta en el mapa, abre la hoja de reserva de un cuidador. */
+export async function openSheetFromMap(page: Page, sitter: string) {
+  await openProfileFromMap(page, sitter);
+  await btn(page, 'Reservar').click();
+  await expect(btn(page, 'Enviar solicitud')).toBeVisible();
+}
+
+/** Valor que muestra un selector de la hoja, p. ej. "Día: Mañana". */
+export const value = (page: Page, title: string, v: string | RegExp) =>
+  typeof v === 'string' ? seen(page, new RegExp(`^${title}: ${v.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`)) : seen(page, v);
+
+export async function readValue(page: Page, title: string) {
+  const el = page.getByText(new RegExp(`^${title}: `)).or(page.getByLabel(new RegExp(`^${title}: `))).first();
+  const text = (await el.getAttribute('aria-label')) ?? (await el.textContent()) ?? '';
+  return text.replace(`${title}: `, '').trim();
+}
+
+/**
+ * Pulsa un botón −/+ y espera a que cambie el valor que muestra. Devuelve
+ * `false` si ya no se puede avanzar (botón inactivo o valor sin cambio).
+ * Flutter marca el botón como inactivo un instante después del toque, por eso
+ * se mira el valor y no solo el estado del botón.
+ */
+export async function step(page: Page, title: string, name: string) {
+  const b = btn(page, name);
+  if (!(await b.isEnabled())) return false;
+  const before = await readValue(page, title);
+  await b.click({ timeout: 2_000 }).catch(() => {});
+  try {
+    await expect.poll(() => readValue(page, title), { timeout: 1_500 }).not.toBe(before);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+export async function stepToEnd(page: Page, title: string, name: string) {
+  for (let i = 0; i < 40 && (await step(page, title, name)); i++);
+}
+
+/** Lleva un selector −/+ al mínimo y luego avanza hasta el valor buscado. */
+export async function stepTo(page: Page, title: string, target: string, prev: string, next: string) {
+  await stepToEnd(page, title, prev);
+  for (let i = 0; i < 40; i++) {
+    if ((await readValue(page, title)) === target) return;
+    if (!(await step(page, title, next))) break;
+  }
+  expect(await readValue(page, title)).toBe(target);
+}
+
+export async function pickWhen(page: Page, day = 'Mañana', hour = '9:00') {
+  await stepTo(page, 'Día', day, 'Día anterior', 'Día siguiente');
+  await stepTo(page, 'Hora', hour, 'Hora anterior', 'Hora siguiente');
+}
+
+
+/** Cambia de cuenta con el panel "Modo demo" sin perder los datos en memoria. */
+export async function switchDemo(page: Page, role: 'Dueño' | 'Cuidador' | 'Administrador' | 'Superadministrador') {
+  await tab(page, 'Perfil').click();
+  await btn(page, `Demo: ${role}`).click();
+}
+
+/** Desde el mapa del dueño, reserva un paseo con Carlos Cuidador (mañana a las 9:00). */
+export async function bookWithCarlos(page: Page) {
+  await openSheetFromMap(page, 'Carlos Cuidador');
+  await btn(page, 'Rocky').click();
+  await pickWhen(page);
+  await btn(page, 'Enviar solicitud').click();
+  await expect(seen(page, '¡Solicitud enviada!')).toBeVisible();
+  await btn(page, 'Volver al mapa').click();
+  await expect(pins(page).first()).toBeAttached();
+}
+
+/** Desplaza la lista con la rueda hasta que aparezca el elemento (Flutter construye solo lo visible). */
+export async function scrollUntil(page: Page, target: Locator) {
+  const vp = page.viewportSize()!;
+  for (let i = 0; i < 15 && (await target.count()) === 0; i++) {
+    await page.mouse.move(vp.width / 2, vp.height / 2);
+    await page.mouse.wheel(0, 350);
+    await page.waitForTimeout(150);
+  }
+  await expect(target.first()).toBeAttached();
+}

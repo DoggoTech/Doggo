@@ -1,5 +1,6 @@
 import 'package:latlong2/latlong.dart';
 
+import 'availability.dart';
 import 'service_type.dart';
 
 /// Un cuidador aprobado tal como se muestra en el mapa y la lista.
@@ -17,6 +18,7 @@ class SitterSummary {
     this.verified = false,
     this.ratingAvg,
     this.ratingCount = 0,
+    this.availability = WeeklyAvailability.standard,
   });
 
   final String id;
@@ -33,7 +35,30 @@ class SitterSummary {
   final double? ratingAvg;
   final int ratingCount;
 
+  /// Cuándo puede empezar servicios (horario semanal).
+  final WeeklyAvailability availability;
+
   bool offers(ServiceType type) => services.containsKey(type);
+
+  SitterSummary copyWith({
+    Map<ServiceType, int>? services,
+    WeeklyAvailability? availability,
+  }) {
+    return SitterSummary(
+      id: id,
+      name: name,
+      neighborhood: neighborhood,
+      bio: bio,
+      location: location,
+      radiusKm: radiusKm,
+      services: services ?? this.services,
+      avatarUrl: avatarUrl,
+      verified: verified,
+      ratingAvg: ratingAvg,
+      ratingCount: ratingCount,
+      availability: availability ?? this.availability,
+    );
+  }
 
   /// Precio que muestra el pin: el más bajo del servicio filtrado; sin filtro,
   /// el del paseo (o el más bajo que ofrezca si no hace paseos).

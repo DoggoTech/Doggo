@@ -1,4 +1,5 @@
 import 'package:doggo/data/demo/demo_repository.dart';
+import 'package:doggo/data/models/availability.dart';
 import 'package:doggo/data/models/booking.dart';
 import 'package:doggo/data/models/dog.dart';
 import 'package:doggo/data/models/profile.dart';
@@ -84,14 +85,36 @@ void main() {
       final b = await book();
       expect(b.responseDeadline.difference(b.createdAt), const Duration(hours: 2));
 
-      final soon = DateTime.now().add(const Duration(minutes: 90));
-      final near = await book(start: soon);
+      // Reloj fijo a las 8:00 para que "dentro de 90 min" caiga en horario.
+      final eight = tomorrow9.subtract(const Duration(hours: 1));
+      final fixed = DemoRepository(clock: () => eight);
+      await fixed.signIn(email: 'dueno@doggo.app', password: demoPassword);
+      final soon = eight.add(const Duration(minutes: 90));
+      final near = await fixed.createBooking(
+        sitterId: laura,
+        dogId: rocky,
+        service: ServiceType.walk,
+        startAt: soon,
+        endAt: soon.add(const Duration(hours: 1)),
+      );
       expect(near.responseDeadline, soon.subtract(const Duration(minutes: 30)));
     });
 
     test('menos de 1 hora de anticipación: rechazada', () async {
-      final soon = DateTime.now().add(const Duration(minutes: 40));
-      expect(() => book(start: soon), throwsA(isA<ValidationFailure>()));
+      final eight = tomorrow9.subtract(const Duration(hours: 1));
+      final fixed = DemoRepository(clock: () => eight);
+      await fixed.signIn(email: 'dueno@doggo.app', password: demoPassword);
+      final soon = eight.add(const Duration(minutes: 40)); // 8:40, en horario
+      expect(
+        () => fixed.createBooking(
+          sitterId: laura,
+          dogId: rocky,
+          service: ServiceType.walk,
+          startAt: soon,
+          endAt: soon.add(const Duration(hours: 1)),
+        ),
+        throwsA(isA<ValidationFailure>().having((e) => e.message, 'message', contains('1 hora de anticipación'))),
+      );
     });
 
     test('fin antes del inicio: rechazada', () async {
@@ -157,6 +180,126 @@ void main() {
   test('con una reserva activa no se puede cambiar de rol', () async {
     await book();
     expect(() => repo.switchRole(UserRole.sitter), throwsA(isA<AuthFailure>()));
+  });
+
+  group('panel del cuidador', () {
+    const carlos = 'demo-sitter';
+    late DateTime now;
+    late DemoRepository clocked;
+
+    setUp(() async {
+      now = DateTime.now();
+      clocked = DemoRepository(clock: () => now);
+      await clocked.signIn(email: 'dueno@doggo.app', password: demoPassword);
+    });
+
+    Future<Booking> bookCarlos({DateTime? start}) {
+      final s = start ?? tomorrow9;
+      return clocked.createBooking(
+        sitterId: carlos,
+        dogId: rocky,
+        service: ServiceType.walk,
+        startAt: s,
+        endAt: s.add(const Duration(hours: 1)),
+      );
+    }
+
+    Future<void> asCarlos() async {
+      await clocked.signOut();
+      await clocked.signIn(email: 'cuidador@doggo.app', password: demoPassword);
+    }
+
+    test('la solicitud le llega en vivo al cuidador y puede aceptarla', () async {
+      final b = await bookCarlos();
+      expect(b.ownerName, 'Daniela Dueña');
+      await asCarlos();
+      final first = await clocked.watchMyBookings().first;
+      expect(first.single.status, BookingStatus.pending);
+
+      final updates = clocked.watchMyBookings().skip(1).first;
+      await clocked.respondToBooking(b.id, accept: true);
+      expect((await updates).single.status, BookingStatus.accepted);
+
+      final done = await clocked.completeBooking(b.id);
+      expect(done.status, BookingStatus.completed);
+    });
+
+    test('rechazar', () async {
+      final b = await bookCarlos();
+      await asCarlos();
+      final r = await clocked.respondToBooking(b.id, accept: false);
+      expect(r.status, BookingStatus.rejected);
+      expect(() => clocked.respondToBooking(b.id, accept: true), throwsA(isA<ValidationFailure>()));
+    });
+
+    test('pasado el plazo de 2 h la solicitud vence y no se puede aceptar', () async {
+      final b = await bookCarlos();
+      await asCarlos();
+      now = now.add(const Duration(hours: 2, minutes: 1));
+      final list = await clocked.watchMyBookings().first;
+      expect(list.single.status, BookingStatus.expired);
+      expect(() => clocked.respondToBooking(b.id, accept: true), throwsA(isA<ValidationFailure>()));
+    });
+
+    test('no se completa una reserva sin aceptar', () async {
+      final b = await bookCarlos();
+      await asCarlos();
+      expect(() => clocked.completeBooking(b.id), throwsA(isA<ValidationFailure>()));
+    });
+
+    test('otro cuidador no puede responder solicitudes ajenas', () async {
+      final b = await bookCarlos();
+      await clocked.signOut();
+      await clocked.signUp(
+        email: 'otro.cuidador@test.com',
+        password: 'secreto1',
+        fullName: 'Otro',
+        role: UserRole.sitter,
+        acceptedTerms: true,
+      );
+      expect(() => clocked.respondToBooking(b.id, accept: true), throwsA(isA<ValidationFailure>()));
+    });
+
+    test('el cuidador edita servicios y precios, y se ven en el mapa', () async {
+      await asCarlos();
+      await clocked.saveMyServices({ServiceType.walk: 30000, ServiceType.training: 70000});
+      final s = await clocked.fetchSitter(carlos);
+      expect(s!.services, {ServiceType.walk: 30000, ServiceType.training: 70000});
+    });
+
+    test('precios fuera de rango o sin servicios: rechazado', () async {
+      await asCarlos();
+      expect(() => clocked.saveMyServices({ServiceType.walk: 100}), throwsA(isA<ValidationFailure>()));
+      expect(() => clocked.saveMyServices({}), throwsA(isA<ValidationFailure>()));
+    });
+
+    test('la reserva debe caer dentro del horario del cuidador', () async {
+      await asCarlos();
+      await clocked.saveMyAvailability(
+        WeeklyAvailability.standard.withDay(tomorrow9.weekday, const DayWindow(600, 720)), // 10:00–12:00
+      );
+      await clocked.signOut();
+      await clocked.signIn(email: 'dueno@doggo.app', password: demoPassword);
+      expect(() => bookCarlos(start: tomorrow9), throwsA(isA<ValidationFailure>())); // 9:00
+      final ok = await bookCarlos(start: tomorrow9.add(const Duration(hours: 2))); // 11:00
+      expect(ok.status, BookingStatus.pending);
+    });
+
+    test('un cuidador en revisión prepara sus servicios aunque no esté en el mapa', () async {
+      await clocked.signOut();
+      await clocked.signUp(
+        email: 'nuevo.cuidador@test.com',
+        password: 'secreto1',
+        fullName: 'Nuevo Cuidador',
+        role: UserRole.sitter,
+        acceptedTerms: true,
+      );
+      final mine = await clocked.fetchMySitterProfile();
+      expect(mine.services, isEmpty);
+      await clocked.saveMyServices({ServiceType.walk: 20000});
+      expect((await clocked.fetchMySitterProfile()).services, {ServiceType.walk: 20000});
+      expect((await clocked.fetchSitters()).any((s) => s.name == 'Nuevo Cuidador'), isFalse);
+    });
   });
 
   test('el cuidador de prueba aparece en el mapa demo', () async {

@@ -19,7 +19,7 @@ create schema if not exists private;
 create type public.user_role      as enum ('owner', 'sitter', 'admin', 'superadmin');
 create type public.user_status    as enum ('pending_review', 'approved', 'suspended');
 create type public.service_type   as enum ('walk', 'daycare', 'boarding', 'home_visit', 'grooming', 'training');
-create type public.booking_status as enum ('pending', 'accepted', 'rejected', 'cancelled', 'completed');
+create type public.booking_status as enum ('pending', 'accepted', 'rejected', 'cancelled', 'completed', 'expired');
 create type public.report_reason  as enum ('inappropriate_behavior', 'fake_profile', 'off_platform_payment', 'animal_abuse', 'other');
 create type public.report_status  as enum ('open', 'reviewed', 'dismissed');
 create type public.dog_size       as enum ('small', 'medium', 'large', 'giant');
@@ -109,6 +109,18 @@ create table public.sitter_services (
   price_cop    integer not null check (price_cop between 5000 and 2000000),
   active       boolean not null default true,
   unique (sitter_id, service_type)
+);
+
+-- Horario semanal del cuidador: franja en la que puede EMPEZAR un servicio,
+-- en hora de Bogotá. Día ISO (1 = lunes … 7 = domingo). Sin filas = sin
+-- restricción (la app ofrece de 7:00 a 19:00).
+create table public.sitter_availability (
+  sitter_id    uuid not null references public.profiles (id) on delete cascade,
+  weekday      smallint not null check (weekday between 1 and 7),
+  start_minute smallint not null check (start_minute between 0 and 1439),
+  end_minute   smallint not null check (end_minute between 0 and 1439),
+  primary key (sitter_id, weekday),
+  constraint availability_window check (end_minute >= start_minute)
 );
 
 create table public.bookings (
@@ -231,6 +243,20 @@ $$;
 create function private.booking_has_report(b uuid)
 returns boolean language sql stable security definer set search_path = public as $$
   select exists (select 1 from reports where booking_id = b);
+$$;
+
+-- ¿El inicio cae dentro del horario del cuidador? (hora de Bogotá)
+create function private.within_availability(s uuid, t timestamptz)
+returns boolean language sql stable security definer set search_path = public as $$
+  select not exists (select 1 from sitter_availability where sitter_id = s)
+      or exists (
+        select 1 from sitter_availability
+        where sitter_id = s
+          and weekday = extract(isodow from (t at time zone 'America/Bogota'))::int
+          and (extract(hour from (t at time zone 'America/Bogota')) * 60
+             + extract(minute from (t at time zone 'America/Bogota')))
+              between start_minute and end_minute
+      );
 $$;
 
 create function private.service_price(s uuid, t public.service_type)
@@ -375,6 +401,10 @@ begin
   end if;
   if new.dog_id is null or not private.owns_dog(new.owner_id, new.dog_id) then
     raise exception 'invalid_dog' using errcode = '22023';
+  end if;
+
+  if not private.within_availability(new.sitter_id, new.start_at) then
+    raise exception 'outside_availability' using errcode = '22023';
   end if;
 
   price := private.service_price(new.sitter_id, new.service_type);
@@ -526,6 +556,7 @@ alter table public.dogs            enable row level security;
 alter table public.dog_notes       enable row level security;
 alter table public.sitter_services enable row level security;
 alter table public.bookings        enable row level security;
+alter table public.sitter_availability enable row level security;
 alter table public.reviews         enable row level security;
 alter table public.reports         enable row level security;
 alter table public.admin_actions   enable row level security;
@@ -584,6 +615,18 @@ create policy services_insert_own on public.sitter_services for insert
 create policy services_update_own on public.sitter_services for update
   using (sitter_id = auth.uid()) with check (sitter_id = auth.uid());
 create policy services_delete_own on public.sitter_services for delete
+  using (sitter_id = auth.uid());
+
+-- sitter_availability: pública para cuidadores aprobados (la hoja de reserva
+-- la necesita); el cuidador gestiona la suya, también estando en revisión.
+create policy availability_select on public.sitter_availability for select using (
+  private.is_public_sitter(sitter_id) or sitter_id = auth.uid() or private.is_admin()
+);
+create policy availability_insert_own on public.sitter_availability for insert
+  with check (sitter_id = auth.uid() and private.has_role(auth.uid(), 'sitter'));
+create policy availability_update_own on public.sitter_availability for update
+  using (sitter_id = auth.uid()) with check (sitter_id = auth.uid());
+create policy availability_delete_own on public.sitter_availability for delete
   using (sitter_id = auth.uid());
 
 -- bookings: solo las partes; el admin ve únicamente la reserva ligada a un reporte.
@@ -820,6 +863,34 @@ begin
 end;
 $$;
 
+-- Vence las solicitudes que el cuidador no respondió a tiempo. La ejecuta
+-- pg_cron cada minuto (abajo); la app además muestra como vencida cualquier
+-- solicitud `pending` con el plazo pasado, sin esperar al cron.
+create function public.expire_overdue_bookings()
+returns integer language plpgsql security definer set search_path = public as $$
+declare
+  n integer;
+begin
+  update bookings set status = 'expired'
+   where status = 'pending' and response_deadline <= now();
+  get diagnostics n = row_count;
+  return n;
+end;
+$$;
+
+do $$
+begin
+  if exists (select 1 from pg_available_extensions where name = 'pg_cron') then
+    create extension if not exists pg_cron;
+    perform cron.schedule('doggo-expire-bookings', '* * * * *', 'select public.expire_overdue_bookings()');
+  else
+    raise notice 'pg_cron no está disponible: activa la extensión en Supabase (Database -> Extensions) y vuelve a correr este bloque.';
+  end if;
+exception when others then
+  raise notice 'No se pudo programar el vencimiento automático: %', sqlerrm;
+end;
+$$;
+
 -- -----------------------------------------------------------------------------
 -- 8. Realtime: bookings
 --    REPLICA IDENTITY FULL para que los UPDATE lleven la fila completa y los
@@ -863,16 +934,18 @@ revoke all on all functions in schema public from public, anon, authenticated;
 grant select (id, role, full_name, avatar_url, bio, approx_lat, approx_lng,
               radius_km, status, verified)
   on public.profiles to anon;
-grant select on public.sitter_services, public.reviews, public.sitter_rating_stats to anon;
+grant select on public.sitter_services, public.reviews, public.sitter_rating_stats,
+                public.sitter_availability to anon;
 
 -- Autenticados.
 grant select on public.profiles, public.profile_private, public.dogs, public.dog_notes,
                 public.sitter_services, public.bookings, public.reviews, public.reports,
-                public.admin_actions, public.sitter_rating_stats
+                public.admin_actions, public.sitter_rating_stats, public.sitter_availability
   to authenticated;
 grant update (full_name, avatar_url, bio, radius_km) on public.profiles to authenticated;
 grant update (phone, exact_lat, exact_lng, address) on public.profile_private to authenticated;
-grant insert, update, delete on public.dogs, public.dog_notes, public.sitter_services to authenticated;
+grant insert, update, delete on public.dogs, public.dog_notes, public.sitter_services,
+                               public.sitter_availability to authenticated;
 grant insert on public.bookings, public.reviews, public.reports to authenticated;
 grant update (status) on public.bookings to authenticated;
 

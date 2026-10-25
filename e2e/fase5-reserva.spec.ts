@@ -1,62 +1,7 @@
-import { test, expect, Page } from '@playwright/test';
-import { goToHash, goToLogin, login, openSitterProfile, pins, seen, tab, typeInto } from './helpers';
-
-const btn = (page: Page, name: string | RegExp) =>
-  page.getByRole('button', { name, exact: typeof name === 'string' });
-
-async function openSheet(page: Page, sitter: string) {
-  await openSitterProfile(page, sitter);
-  await btn(page, 'Reservar').click();
-  await expect(btn(page, 'Enviar solicitud')).toBeVisible();
-}
-
-/** Valor que muestra un selector de la hoja, p. ej. "Día: Mañana". */
-const value = (page: Page, title: string, v: string | RegExp) =>
-  typeof v === 'string' ? seen(page, new RegExp(`^${title}: ${v.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`)) : seen(page, v);
-
-async function readValue(page: Page, title: string) {
-  const el = page.getByText(new RegExp(`^${title}: `)).or(page.getByLabel(new RegExp(`^${title}: `))).first();
-  const text = (await el.getAttribute('aria-label')) ?? (await el.textContent()) ?? '';
-  return text.replace(`${title}: `, '').trim();
-}
-
-/**
- * Pulsa un botón −/+ y espera a que cambie el valor que muestra. Devuelve
- * `false` si ya no se puede avanzar (botón inactivo o valor sin cambio).
- * Flutter marca el botón como inactivo un instante después del toque, por eso
- * se mira el valor y no solo el estado del botón.
- */
-async function step(page: Page, title: string, name: string) {
-  const b = btn(page, name);
-  if (!(await b.isEnabled())) return false;
-  const before = await readValue(page, title);
-  await b.click({ timeout: 2_000 }).catch(() => {});
-  try {
-    await expect.poll(() => readValue(page, title), { timeout: 1_500 }).not.toBe(before);
-    return true;
-  } catch {
-    return false;
-  }
-}
-
-async function stepToEnd(page: Page, title: string, name: string) {
-  for (let i = 0; i < 40 && (await step(page, title, name)); i++);
-}
-
-/** Lleva un selector −/+ al mínimo y luego avanza hasta el valor buscado. */
-async function stepTo(page: Page, title: string, target: string, prev: string, next: string) {
-  await stepToEnd(page, title, prev);
-  for (let i = 0; i < 40; i++) {
-    if ((await readValue(page, title)) === target) return;
-    if (!(await step(page, title, next))) break;
-  }
-  expect(await readValue(page, title)).toBe(target);
-}
-
-async function pickWhen(page: Page, day = 'Mañana', hour = '9:00') {
-  await stepTo(page, 'Día', day, 'Día anterior', 'Día siguiente');
-  await stepTo(page, 'Hora', hour, 'Hora anterior', 'Hora siguiente');
-}
+import { test, expect } from '@playwright/test';
+import {
+  btn, goToHash, goToLogin, login, openSheet, openSitterProfile, pickWhen, pins, readValue, seen, stepTo, stepToEnd, tab, typeInto, value,
+} from './helpers';
 
 test.describe('perfil del cuidador', () => {
   test('muestra foto, bio, servicios con precio, reseñas y Reservar', async ({ page }) => {
