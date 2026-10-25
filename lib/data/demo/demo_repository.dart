@@ -1,10 +1,13 @@
 import 'dart:async';
+import 'dart:convert';
+import 'dart:typed_data';
 
 import 'package:latlong2/latlong.dart';
 
 import '../models/admin.dart';
 import '../models/availability.dart';
 import '../contact_filter.dart';
+import '../location_privacy.dart';
 import '../models/booking.dart';
 import '../models/contact_info.dart';
 import '../models/dog.dart';
@@ -771,6 +774,9 @@ class DemoRepository implements Repository {
 
   final _adminActions = <AdminAction>[];
 
+  /// Ubicación exacta de cada cuidador: privada, nunca sale en el mapa.
+  final _exactLocations = <String, LatLng>{};
+
   _DemoUser? _userById(String id) {
     for (final u in _users.values) {
       if (u.profile.id == id) return u;
@@ -782,7 +788,9 @@ class DemoRepository implements Repository {
   /// suspendidos) con al menos un servicio.
   bool _isVisible(SitterSummary s) {
     final status = _userById(s.id)?.profile.status ?? UserStatus.approved;
-    return status == UserStatus.approved && s.services.isNotEmpty;
+    return status == UserStatus.approved &&
+        s.services.isNotEmpty &&
+        s.locationConfirmed;
   }
 
   AdminUserRow _row(Profile p) => AdminUserRow(
@@ -857,6 +865,7 @@ class DemoRepository implements Repository {
         location: const LatLng(4.6533, -74.0836),
         radiusKm: 5,
         services: const {},
+        locationConfirmed: false,
       ),
     );
   }
@@ -1007,6 +1016,58 @@ class DemoRepository implements Repository {
     return list..sort((a, b) => b.createdAt.compareTo(a.createdAt));
   }
 
+  @override
+  Future<void> saveMyServiceArea({
+    required LatLng exact,
+    required String neighborhood,
+    required int radiusKm,
+  }) async {
+    await _latency();
+    final me = _requireSitter();
+    final name = neighborhood.trim();
+    if (name.isEmpty || name.length > 60) {
+      throw const ValidationFailure('Escribe tu barrio (máx. 60 caracteres).');
+    }
+    if (containsContactInfo(name)) {
+      throw const ValidationFailure(contactInfoMessage);
+    }
+    if (radiusKm < 1 || radiusKm > 20) {
+      throw const ValidationFailure('El radio debe estar entre 1 y 20 km.');
+    }
+    if (exact.latitude.abs() > 90 || exact.longitude.abs() > 180) {
+      throw const ValidationFailure('Esa ubicación no es válida.');
+    }
+    await fetchMySitterProfile();
+    _exactLocations[me.id] = exact;
+    _updateMySitter(
+      (s) => s.copyWith(
+        location: approximateLocation(me.id, exact),
+        neighborhood: name,
+        radiusKm: radiusKm,
+        locationConfirmed: true,
+      ),
+    );
+  }
+
+  @override
+  Future<void> saveMyPhoto(Uint8List bytes, String mimeType) async {
+    await _latency();
+    _requireSitter();
+    const allowed = {'image/jpeg', 'image/png', 'image/webp'};
+    if (!allowed.contains(mimeType)) {
+      throw const ValidationFailure('La foto debe ser JPG, PNG o WEBP.');
+    }
+    if (bytes.isEmpty || bytes.length > 2 * 1024 * 1024) {
+      throw const ValidationFailure('La foto puede pesar hasta 2 MB.');
+    }
+    await fetchMySitterProfile();
+    // En el modo demo la foto queda en memoria; con Supabase va al bucket `avatars`.
+    _updateMySitter(
+      (s) =>
+          s.copyWith(avatarUrl: 'data:$mimeType;base64,${base64Encode(bytes)}'),
+    );
+  }
+
   /// El cuidador con sesión (rol sitter, aunque esté en revisión).
   Profile _requireSitter() {
     final me = _current;
@@ -1037,6 +1098,7 @@ class DemoRepository implements Repository {
         location: const LatLng(4.6533, -74.0836),
         radiusKm: 5,
         services: const {},
+        locationConfirmed: false,
       ),
     );
   }

@@ -144,6 +144,18 @@ class _PendingCardState extends ConsumerState<_PendingCard> {
               style: theme.textTheme.bodySmall,
             ),
           ),
+          const SizedBox(height: 4),
+          Semantics(
+            container: true,
+            child: Text(
+              s.locationConfirmed
+                  ? 'Zona: ${s.neighborhood}, ${s.radiusKm} km a la redonda'
+                  : 'Aún no define su zona de servicio: no saldrá en el mapa hasta hacerlo.',
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: s.locationConfirmed ? null : theme.colorScheme.error,
+              ),
+            ),
+          ),
           const SizedBox(height: 8),
           Row(
             children: [

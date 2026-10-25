@@ -1,3 +1,7 @@
+import 'dart:typed_data';
+
+import 'package:latlong2/latlong.dart';
+
 import '../models/admin.dart';
 import '../models/availability.dart';
 import '../models/booking.dart';
@@ -181,4 +185,15 @@ abstract class Repository {
 
   /// Auditoría: el admin ve sus acciones; el superadmin, todas.
   Future<List<AdminAction>> fetchAdminActions();
+
+  /// Zona de servicio del cuidador. Guarda la ubicación EXACTA en privado y
+  /// publica en el mapa una aproximada (200–300 m de diferencia).
+  Future<void> saveMyServiceArea({
+    required LatLng exact,
+    required String neighborhood,
+    required int radiusKm,
+  });
+
+  /// Foto de perfil: JPG, PNG o WEBP de hasta 2 MB.
+  Future<void> saveMyPhoto(Uint8List bytes, String mimeType);
 }

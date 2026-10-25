@@ -19,6 +19,7 @@ class SitterSummary {
     this.ratingAvg,
     this.ratingCount = 0,
     this.availability = WeeklyAvailability.standard,
+    this.locationConfirmed = true,
   });
 
   final String id;
@@ -38,6 +39,9 @@ class SitterSummary {
   /// Cuándo puede empezar servicios (horario semanal).
   final WeeklyAvailability availability;
 
+  /// El cuidador ya fijó su zona de servicio (sin ella no sale en el mapa).
+  final bool locationConfirmed;
+
   bool offers(ServiceType type) => services.containsKey(type);
 
   SitterSummary copyWith({
@@ -47,20 +51,26 @@ class SitterSummary {
     int? ratingCount,
     String? bio,
     bool? verified,
+    LatLng? location,
+    String? neighborhood,
+    int? radiusKm,
+    String? avatarUrl,
+    bool? locationConfirmed,
   }) {
     return SitterSummary(
       id: id,
       name: name,
-      neighborhood: neighborhood,
+      neighborhood: neighborhood ?? this.neighborhood,
       bio: bio ?? this.bio,
-      location: location,
-      radiusKm: radiusKm,
+      location: location ?? this.location,
+      radiusKm: radiusKm ?? this.radiusKm,
       services: services ?? this.services,
-      avatarUrl: avatarUrl,
+      avatarUrl: avatarUrl ?? this.avatarUrl,
       verified: verified ?? this.verified,
       ratingAvg: ratingAvg ?? this.ratingAvg,
       ratingCount: ratingCount ?? this.ratingCount,
       availability: availability ?? this.availability,
+      locationConfirmed: locationConfirmed ?? this.locationConfirmed,
     );
   }
 

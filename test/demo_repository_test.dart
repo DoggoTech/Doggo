@@ -1,3 +1,5 @@
+import 'dart:typed_data';
+
 import 'package:doggo/data/demo/demo_repository.dart';
 import 'package:doggo/data/models/availability.dart';
 import 'package:doggo/data/models/booking.dart';
@@ -9,6 +11,7 @@ import 'package:doggo/data/models/service_type.dart';
 import 'package:doggo/data/pricing.dart';
 import 'package:doggo/data/repositories/repository.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:latlong2/latlong.dart';
 
 const laura = 'a1000000-0000-4000-8000-000000000001';
 const andres = 'a1000000-0000-4000-8000-000000000002';
@@ -45,18 +48,47 @@ void main() {
 
   group('precio (misma regla que el trigger de la base)', () {
     test('paseo, visita, baño y entrenamiento: una unidad', () {
-      for (final s in [ServiceType.walk, ServiceType.homeVisit, ServiceType.grooming, ServiceType.training]) {
-        expect(bookingUnits(s, tomorrow9, tomorrow9.add(const Duration(hours: 5))), 1);
+      for (final s in [
+        ServiceType.walk,
+        ServiceType.homeVisit,
+        ServiceType.grooming,
+        ServiceType.training,
+      ]) {
+        expect(
+          bookingUnits(s, tomorrow9, tomorrow9.add(const Duration(hours: 5))),
+          1,
+        );
       }
     });
 
     test('guardería: por día, redondeando hacia arriba', () {
-      expect(bookingUnits(ServiceType.daycare, tomorrow9, bookingEnd(ServiceType.daycare, tomorrow9)), 1);
-      expect(bookingUnits(ServiceType.daycare, tomorrow9, bookingEnd(ServiceType.daycare, tomorrow9, amount: 3)), 3);
+      expect(
+        bookingUnits(
+          ServiceType.daycare,
+          tomorrow9,
+          bookingEnd(ServiceType.daycare, tomorrow9),
+        ),
+        1,
+      );
+      expect(
+        bookingUnits(
+          ServiceType.daycare,
+          tomorrow9,
+          bookingEnd(ServiceType.daycare, tomorrow9, amount: 3),
+        ),
+        3,
+      );
     });
 
     test('hospedaje: por noche', () {
-      expect(bookingUnits(ServiceType.boarding, tomorrow9, bookingEnd(ServiceType.boarding, tomorrow9, amount: 4)), 4);
+      expect(
+        bookingUnits(
+          ServiceType.boarding,
+          tomorrow9,
+          bookingEnd(ServiceType.boarding, tomorrow9, amount: 4),
+        ),
+        4,
+      );
     });
   });
 
@@ -83,24 +115,33 @@ void main() {
       expect(() => book(start: past), throwsA(isA<ValidationFailure>()));
     });
 
-    test('el cuidador tiene 2 h para responder, o hasta 30 min antes del inicio', () async {
-      final b = await book();
-      expect(b.responseDeadline.difference(b.createdAt), const Duration(hours: 2));
+    test(
+      'el cuidador tiene 2 h para responder, o hasta 30 min antes del inicio',
+      () async {
+        final b = await book();
+        expect(
+          b.responseDeadline.difference(b.createdAt),
+          const Duration(hours: 2),
+        );
 
-      // Reloj fijo a las 8:00 para que "dentro de 90 min" caiga en horario.
-      final eight = tomorrow9.subtract(const Duration(hours: 1));
-      final fixed = DemoRepository(clock: () => eight);
-      await fixed.signIn(email: 'dueno@doggo.app', password: demoPassword);
-      final soon = eight.add(const Duration(minutes: 90));
-      final near = await fixed.createBooking(
-        sitterId: laura,
-        dogId: rocky,
-        service: ServiceType.walk,
-        startAt: soon,
-        endAt: soon.add(const Duration(hours: 1)),
-      );
-      expect(near.responseDeadline, soon.subtract(const Duration(minutes: 30)));
-    });
+        // Reloj fijo a las 8:00 para que "dentro de 90 min" caiga en horario.
+        final eight = tomorrow9.subtract(const Duration(hours: 1));
+        final fixed = DemoRepository(clock: () => eight);
+        await fixed.signIn(email: 'dueno@doggo.app', password: demoPassword);
+        final soon = eight.add(const Duration(minutes: 90));
+        final near = await fixed.createBooking(
+          sitterId: laura,
+          dogId: rocky,
+          service: ServiceType.walk,
+          startAt: soon,
+          endAt: soon.add(const Duration(hours: 1)),
+        );
+        expect(
+          near.responseDeadline,
+          soon.subtract(const Duration(minutes: 30)),
+        );
+      },
+    );
 
     test('menos de 1 hora de anticipación: rechazada', () async {
       final eight = tomorrow9.subtract(const Duration(hours: 1));
@@ -115,7 +156,13 @@ void main() {
           startAt: soon,
           endAt: soon.add(const Duration(hours: 1)),
         ),
-        throwsA(isA<ValidationFailure>().having((e) => e.message, 'message', contains('1 hora de anticipación'))),
+        throwsA(
+          isA<ValidationFailure>().having(
+            (e) => e.message,
+            'message',
+            contains('1 hora de anticipación'),
+          ),
+        ),
       );
     });
 
@@ -127,11 +174,17 @@ void main() {
     });
 
     test('servicio que el cuidador no ofrece: rechazada', () async {
-      expect(() => book(service: ServiceType.grooming), throwsA(isA<ValidationFailure>()));
+      expect(
+        () => book(service: ServiceType.grooming),
+        throwsA(isA<ValidationFailure>()),
+      );
     });
 
     test('cuidador en revisión o inexistente: rechazada', () async {
-      expect(() => book(sitter: 'a1000000-0000-4000-8000-000000000011'), throwsA(isA<ValidationFailure>()));
+      expect(
+        () => book(sitter: 'a1000000-0000-4000-8000-000000000011'),
+        throwsA(isA<ValidationFailure>()),
+      );
     });
 
     test('perro de otro dueño: rechazada', () async {
@@ -175,7 +228,10 @@ void main() {
     });
 
     test('nombre vacío: rechazado', () async {
-      expect(() => repo.addDog(name: '  ', size: DogSize.small), throwsA(isA<ValidationFailure>()));
+      expect(
+        () => repo.addDog(name: '  ', size: DogSize.small),
+        throwsA(isA<ValidationFailure>()),
+      );
     });
   });
 
@@ -211,42 +267,57 @@ void main() {
       await clocked.signIn(email: 'cuidador@doggo.app', password: demoPassword);
     }
 
-    test('la solicitud le llega en vivo al cuidador y puede aceptarla', () async {
-      final b = await bookCarlos();
-      expect(b.ownerName, 'Daniela Dueña');
-      await asCarlos();
-      final first = await clocked.watchMyBookings().first;
-      expect(first.single.status, BookingStatus.pending);
+    test(
+      'la solicitud le llega en vivo al cuidador y puede aceptarla',
+      () async {
+        final b = await bookCarlos();
+        expect(b.ownerName, 'Daniela Dueña');
+        await asCarlos();
+        final first = await clocked.watchMyBookings().first;
+        expect(first.single.status, BookingStatus.pending);
 
-      final updates = clocked.watchMyBookings().skip(1).first;
-      await clocked.respondToBooking(b.id, accept: true);
-      expect((await updates).single.status, BookingStatus.accepted);
+        final updates = clocked.watchMyBookings().skip(1).first;
+        await clocked.respondToBooking(b.id, accept: true);
+        expect((await updates).single.status, BookingStatus.accepted);
 
-      final done = await clocked.completeBooking(b.id);
-      expect(done.status, BookingStatus.completed);
-    });
+        final done = await clocked.completeBooking(b.id);
+        expect(done.status, BookingStatus.completed);
+      },
+    );
 
     test('rechazar', () async {
       final b = await bookCarlos();
       await asCarlos();
       final r = await clocked.respondToBooking(b.id, accept: false);
       expect(r.status, BookingStatus.rejected);
-      expect(() => clocked.respondToBooking(b.id, accept: true), throwsA(isA<ValidationFailure>()));
+      expect(
+        () => clocked.respondToBooking(b.id, accept: true),
+        throwsA(isA<ValidationFailure>()),
+      );
     });
 
-    test('pasado el plazo de 2 h la solicitud vence y no se puede aceptar', () async {
-      final b = await bookCarlos();
-      await asCarlos();
-      now = now.add(const Duration(hours: 2, minutes: 1));
-      final list = await clocked.watchMyBookings().first;
-      expect(list.single.status, BookingStatus.expired);
-      expect(() => clocked.respondToBooking(b.id, accept: true), throwsA(isA<ValidationFailure>()));
-    });
+    test(
+      'pasado el plazo de 2 h la solicitud vence y no se puede aceptar',
+      () async {
+        final b = await bookCarlos();
+        await asCarlos();
+        now = now.add(const Duration(hours: 2, minutes: 1));
+        final list = await clocked.watchMyBookings().first;
+        expect(list.single.status, BookingStatus.expired);
+        expect(
+          () => clocked.respondToBooking(b.id, accept: true),
+          throwsA(isA<ValidationFailure>()),
+        );
+      },
+    );
 
     test('no se completa una reserva sin aceptar', () async {
       final b = await bookCarlos();
       await asCarlos();
-      expect(() => clocked.completeBooking(b.id), throwsA(isA<ValidationFailure>()));
+      expect(
+        () => clocked.completeBooking(b.id),
+        throwsA(isA<ValidationFailure>()),
+      );
     });
 
     test('otro cuidador no puede responder solicitudes ajenas', () async {
@@ -259,49 +330,83 @@ void main() {
         role: UserRole.sitter,
         acceptedTerms: true,
       );
-      expect(() => clocked.respondToBooking(b.id, accept: true), throwsA(isA<ValidationFailure>()));
+      expect(
+        () => clocked.respondToBooking(b.id, accept: true),
+        throwsA(isA<ValidationFailure>()),
+      );
     });
 
-    test('el cuidador edita servicios y precios, y se ven en el mapa', () async {
-      await asCarlos();
-      await clocked.saveMyServices({ServiceType.walk: 30000, ServiceType.training: 70000});
-      final s = await clocked.fetchSitter(carlos);
-      expect(s!.services, {ServiceType.walk: 30000, ServiceType.training: 70000});
-    });
+    test(
+      'el cuidador edita servicios y precios, y se ven en el mapa',
+      () async {
+        await asCarlos();
+        await clocked.saveMyServices({
+          ServiceType.walk: 30000,
+          ServiceType.training: 70000,
+        });
+        final s = await clocked.fetchSitter(carlos);
+        expect(s!.services, {
+          ServiceType.walk: 30000,
+          ServiceType.training: 70000,
+        });
+      },
+    );
 
     test('precios fuera de rango o sin servicios: rechazado', () async {
       await asCarlos();
-      expect(() => clocked.saveMyServices({ServiceType.walk: 100}), throwsA(isA<ValidationFailure>()));
-      expect(() => clocked.saveMyServices({}), throwsA(isA<ValidationFailure>()));
+      expect(
+        () => clocked.saveMyServices({ServiceType.walk: 100}),
+        throwsA(isA<ValidationFailure>()),
+      );
+      expect(
+        () => clocked.saveMyServices({}),
+        throwsA(isA<ValidationFailure>()),
+      );
     });
 
     test('la reserva debe caer dentro del horario del cuidador', () async {
       await asCarlos();
       await clocked.saveMyAvailability(
-        WeeklyAvailability.standard.withDay(tomorrow9.weekday, const DayWindow(600, 720)), // 10:00–12:00
+        WeeklyAvailability.standard.withDay(
+          tomorrow9.weekday,
+          const DayWindow(600, 720),
+        ), // 10:00–12:00
       );
       await clocked.signOut();
       await clocked.signIn(email: 'dueno@doggo.app', password: demoPassword);
-      expect(() => bookCarlos(start: tomorrow9), throwsA(isA<ValidationFailure>())); // 9:00
-      final ok = await bookCarlos(start: tomorrow9.add(const Duration(hours: 2))); // 11:00
+      expect(
+        () => bookCarlos(start: tomorrow9),
+        throwsA(isA<ValidationFailure>()),
+      ); // 9:00
+      final ok = await bookCarlos(
+        start: tomorrow9.add(const Duration(hours: 2)),
+      ); // 11:00
       expect(ok.status, BookingStatus.pending);
     });
 
-    test('un cuidador en revisión prepara sus servicios aunque no esté en el mapa', () async {
-      await clocked.signOut();
-      await clocked.signUp(
-        email: 'nuevo.cuidador@test.com',
-        password: 'secreto1',
-        fullName: 'Nuevo Cuidador',
-        role: UserRole.sitter,
-        acceptedTerms: true,
-      );
-      final mine = await clocked.fetchMySitterProfile();
-      expect(mine.services, isEmpty);
-      await clocked.saveMyServices({ServiceType.walk: 20000});
-      expect((await clocked.fetchMySitterProfile()).services, {ServiceType.walk: 20000});
-      expect((await clocked.fetchSitters()).any((s) => s.name == 'Nuevo Cuidador'), isFalse);
-    });
+    test(
+      'un cuidador en revisión prepara sus servicios aunque no esté en el mapa',
+      () async {
+        await clocked.signOut();
+        await clocked.signUp(
+          email: 'nuevo.cuidador@test.com',
+          password: 'secreto1',
+          fullName: 'Nuevo Cuidador',
+          role: UserRole.sitter,
+          acceptedTerms: true,
+        );
+        final mine = await clocked.fetchMySitterProfile();
+        expect(mine.services, isEmpty);
+        await clocked.saveMyServices({ServiceType.walk: 20000});
+        expect((await clocked.fetchMySitterProfile()).services, {
+          ServiceType.walk: 20000,
+        });
+        expect(
+          (await clocked.fetchSitters()).any((s) => s.name == 'Nuevo Cuidador'),
+          isFalse,
+        );
+      },
+    );
   });
 
   group('dueño: reservas, contacto, perros y reseñas', () {
@@ -312,62 +417,80 @@ void main() {
     });
 
     Future<Booking> bookCarlos() => r.createBooking(
-          sitterId: 'demo-sitter',
-          dogId: rocky,
-          service: ServiceType.walk,
-          startAt: tomorrow9,
-          endAt: tomorrow9.add(const Duration(hours: 1)),
-        );
+      sitterId: 'demo-sitter',
+      dogId: rocky,
+      service: ServiceType.walk,
+      startAt: tomorrow9,
+      endAt: tomorrow9.add(const Duration(hours: 1)),
+    );
 
     Future<void> as(String email) async {
       await r.signOut();
       await r.signIn(email: email, password: demoPassword);
     }
 
-    test('el contacto solo se ve con la reserva aceptada, y en ambos sentidos', () async {
-      final b = await bookCarlos();
-      expect(await r.fetchCounterpartContact(b.id), isNull);
-      await as('cuidador@doggo.app');
-      expect(await r.fetchCounterpartContact(b.id), isNull);
-      await r.respondToBooking(b.id, accept: true);
-      final ownerContact = await r.fetchCounterpartContact(b.id);
-      expect(ownerContact!.name, 'Daniela Dueña');
-      expect(ownerContact.phone, isNotNull);
-      await as('dueno@doggo.app');
-      final sitterContact = await r.fetchCounterpartContact(b.id);
-      expect(sitterContact!.name, 'Carlos Cuidador');
-      expect(sitterContact.address, contains('Chapinero'));
-    });
+    test(
+      'el contacto solo se ve con la reserva aceptada, y en ambos sentidos',
+      () async {
+        final b = await bookCarlos();
+        expect(await r.fetchCounterpartContact(b.id), isNull);
+        await as('cuidador@doggo.app');
+        expect(await r.fetchCounterpartContact(b.id), isNull);
+        await r.respondToBooking(b.id, accept: true);
+        final ownerContact = await r.fetchCounterpartContact(b.id);
+        expect(ownerContact!.name, 'Daniela Dueña');
+        expect(ownerContact.phone, isNotNull);
+        await as('dueno@doggo.app');
+        final sitterContact = await r.fetchCounterpartContact(b.id);
+        expect(sitterContact!.name, 'Carlos Cuidador');
+        expect(sitterContact.address, contains('Chapinero'));
+      },
+    );
 
-    test('las notas del perro: el cuidador solo las ve con la reserva aceptada', () async {
-      final b = await bookCarlos();
-      await as('cuidador@doggo.app');
-      expect(await r.fetchDogNotesForBooking(b.id), isNull);
-      await r.respondToBooking(b.id, accept: true);
-      expect(await r.fetchDogNotesForBooking(b.id), contains('motos'));
-    });
+    test(
+      'las notas del perro: el cuidador solo las ve con la reserva aceptada',
+      () async {
+        final b = await bookCarlos();
+        await as('cuidador@doggo.app');
+        expect(await r.fetchDogNotesForBooking(b.id), isNull);
+        await r.respondToBooking(b.id, accept: true);
+        expect(await r.fetchDogNotesForBooking(b.id), contains('motos'));
+      },
+    );
 
-    test('cancelar una reserva pendiente o aceptada, no una completada', () async {
-      final b = await bookCarlos();
-      expect((await r.cancelBooking(b.id)).status, BookingStatus.cancelled);
-      expect(() => r.cancelBooking(b.id), throwsA(isA<ValidationFailure>()));
-    });
+    test(
+      'cancelar una reserva pendiente o aceptada, no una completada',
+      () async {
+        final b = await bookCarlos();
+        expect((await r.cancelBooking(b.id)).status, BookingStatus.cancelled);
+        expect(() => r.cancelBooking(b.id), throwsA(isA<ValidationFailure>()));
+      },
+    );
 
-    test('reseña: solo completadas, una vez, y actualiza la calificación', () async {
-      final b = await bookCarlos();
-      expect(() => r.createReview(bookingId: b.id, rating: 5), throwsA(isA<ValidationFailure>()));
-      await as('cuidador@doggo.app');
-      await r.respondToBooking(b.id, accept: true);
-      await r.completeBooking(b.id);
-      await as('dueno@doggo.app');
-      await r.createReview(bookingId: b.id, rating: 5, comment: 'Excelente');
-      expect(() => r.createReview(bookingId: b.id, rating: 4), throwsA(isA<ValidationFailure>()));
-      final carlos = await r.fetchSitter('demo-sitter');
-      expect(carlos!.ratingCount, 1);
-      expect(carlos.ratingAvg, 5.0);
-      final reviews = await r.fetchReviews('demo-sitter');
-      expect(reviews.single.comment, 'Excelente');
-    });
+    test(
+      'reseña: solo completadas, una vez, y actualiza la calificación',
+      () async {
+        final b = await bookCarlos();
+        expect(
+          () => r.createReview(bookingId: b.id, rating: 5),
+          throwsA(isA<ValidationFailure>()),
+        );
+        await as('cuidador@doggo.app');
+        await r.respondToBooking(b.id, accept: true);
+        await r.completeBooking(b.id);
+        await as('dueno@doggo.app');
+        await r.createReview(bookingId: b.id, rating: 5, comment: 'Excelente');
+        expect(
+          () => r.createReview(bookingId: b.id, rating: 4),
+          throwsA(isA<ValidationFailure>()),
+        );
+        final carlos = await r.fetchSitter('demo-sitter');
+        expect(carlos!.ratingCount, 1);
+        expect(carlos.ratingAvg, 5.0);
+        final reviews = await r.fetchReviews('demo-sitter');
+        expect(reviews.single.comment, 'Excelente');
+      },
+    );
 
     test('reseña con teléfono: rechazada', () async {
       final b = await bookCarlos();
@@ -376,17 +499,40 @@ void main() {
       await r.completeBooking(b.id);
       await as('dueno@doggo.app');
       expect(
-        () => r.createReview(bookingId: b.id, rating: 5, comment: 'llámame al 300 111 2233'),
+        () => r.createReview(
+          bookingId: b.id,
+          rating: 5,
+          comment: 'llámame al 300 111 2233',
+        ),
         throwsA(isA<ValidationFailure>()),
       );
     });
 
     test('perros: editar, notas sin datos de contacto y borrar', () async {
-      final max = await r.addDog(name: 'Max', size: DogSize.giant, notes: 'Toma pastilla a las 8');
-      final edited = await r.updateDog(Dog(id: max.id, ownerId: max.ownerId, name: 'Max II', size: DogSize.large));
+      final max = await r.addDog(
+        name: 'Max',
+        size: DogSize.giant,
+        notes: 'Toma pastilla a las 8',
+      );
+      final edited = await r.updateDog(
+        Dog(
+          id: max.id,
+          ownerId: max.ownerId,
+          name: 'Max II',
+          size: DogSize.large,
+        ),
+      );
       expect(edited.name, 'Max II');
       expect(
-        () => r.updateDog(Dog(id: max.id, ownerId: max.ownerId, name: 'Max', size: DogSize.large, notes: 'mi cel 3001112233')),
+        () => r.updateDog(
+          Dog(
+            id: max.id,
+            ownerId: max.ownerId,
+            name: 'Max',
+            size: DogSize.large,
+            notes: 'mi cel 3001112233',
+          ),
+        ),
         throwsA(isA<ValidationFailure>()),
       );
       await r.deleteDog(max.id);
@@ -399,9 +545,14 @@ void main() {
     });
 
     test('mis datos de contacto: se guardan y se validan', () async {
-      await r.saveMyPrivateData(const PrivateData(phone: '+57 311 222 3344', address: 'Calle 1'));
+      await r.saveMyPrivateData(
+        const PrivateData(phone: '+57 311 222 3344', address: 'Calle 1'),
+      );
       expect((await r.fetchMyPrivateData()).phone, '+57 311 222 3344');
-      expect(() => r.saveMyPrivateData(const PrivateData(phone: 'llámame')), throwsA(isA<ValidationFailure>()));
+      expect(
+        () => r.saveMyPrivateData(const PrivateData(phone: 'llámame')),
+        throwsA(isA<ValidationFailure>()),
+      );
     });
   });
 
@@ -413,12 +564,19 @@ void main() {
     });
 
     test('un dueño reporta a un cuidador', () async {
-      await r.createReport(reportedUserId: laura, reason: ReportReason.fakeProfile, comment: 'Fotos falsas');
+      await r.createReport(
+        reportedUserId: laura,
+        reason: ReportReason.fakeProfile,
+        comment: 'Fotos falsas',
+      );
     });
 
     test('no se puede reportar a uno mismo', () async {
       expect(
-        () => r.createReport(reportedUserId: 'demo-owner', reason: ReportReason.other),
+        () => r.createReport(
+          reportedUserId: 'demo-owner',
+          reason: ReportReason.other,
+        ),
         throwsA(isA<ValidationFailure>()),
       );
     });
@@ -431,9 +589,17 @@ void main() {
         startAt: tomorrow9,
         endAt: tomorrow9.add(const Duration(hours: 1)),
       );
-      await r.createReport(reportedUserId: 'demo-sitter', bookingId: b.id, reason: ReportReason.offPlatformPayment);
+      await r.createReport(
+        reportedUserId: 'demo-sitter',
+        bookingId: b.id,
+        reason: ReportReason.offPlatformPayment,
+      );
       expect(
-        () => r.createReport(reportedUserId: laura, bookingId: b.id, reason: ReportReason.other),
+        () => r.createReport(
+          reportedUserId: laura,
+          bookingId: b.id,
+          reason: ReportReason.other,
+        ),
         throwsA(isA<ValidationFailure>()),
       );
     });
@@ -451,8 +617,14 @@ void main() {
       await r.signOut();
       await r.signIn(email: 'cuidador@doggo.app', password: demoPassword);
       await r.saveMyBio('Paseos largos por el parque.');
-      expect((await r.fetchSitter('demo-sitter'))!.bio, 'Paseos largos por el parque.');
-      expect(() => r.saveMyBio('Escríbeme al 300 111 2233'), throwsA(isA<ValidationFailure>()));
+      expect(
+        (await r.fetchSitter('demo-sitter'))!.bio,
+        'Paseos largos por el parque.',
+      );
+      expect(
+        () => r.saveMyBio('Escríbeme al 300 111 2233'),
+        throwsA(isA<ValidationFailure>()),
+      );
     });
   });
 
@@ -472,7 +644,10 @@ void main() {
 
     test('ve los 2 cuidadores en revisión del seed', () async {
       final pending = await r.fetchPendingSitters();
-      expect(pending.map((p) => p.user.name), containsAll(['Natalia Peña', 'Ricardo Salazar']));
+      expect(
+        pending.map((p) => p.user.name),
+        containsAll(['Natalia Peña', 'Ricardo Salazar']),
+      );
       expect(pending.first.sitter.services, isNotEmpty);
     });
 
@@ -480,7 +655,10 @@ void main() {
       expect((await r.fetchSitters()).any((s) => s.id == natalia), isFalse);
       await r.setSitterApproval(natalia, approve: true);
       expect((await r.fetchSitters()).any((s) => s.id == natalia), isTrue);
-      expect((await r.fetchPendingSitters()).any((p) => p.user.id == natalia), isFalse);
+      expect(
+        (await r.fetchPendingSitters()).any((p) => p.user.id == natalia),
+        isFalse,
+      );
       expect((await r.fetchAdminActions()).single.action, 'approve_sitter');
     });
 
@@ -498,54 +676,96 @@ void main() {
       expect((await r.fetchSitter(laura))!.verified, isTrue);
     });
 
-    test('un usuario suspendido desaparece del mapa y no puede entrar', () async {
-      await r.setUserSuspended('demo-sitter', true);
-      expect((await r.fetchSitters()).any((s) => s.id == 'demo-sitter'), isFalse);
-      await r.signOut();
-      expect(
-        () => r.signIn(email: 'cuidador@doggo.app', password: demoPassword),
-        throwsA(isA<AccountSuspendedFailure>()),
-      );
-    });
+    test(
+      'un usuario suspendido desaparece del mapa y no puede entrar',
+      () async {
+        await r.setUserSuspended('demo-sitter', true);
+        expect(
+          (await r.fetchSitters()).any((s) => s.id == 'demo-sitter'),
+          isFalse,
+        );
+        await r.signOut();
+        expect(
+          () => r.signIn(email: 'cuidador@doggo.app', password: demoPassword),
+          throwsA(isA<AccountSuspendedFailure>()),
+        );
+      },
+    );
 
     test('reactivar devuelve al usuario al mapa', () async {
       await r.setUserSuspended('demo-sitter', true);
       await r.setUserSuspended('demo-sitter', false);
-      expect((await r.fetchSitters()).any((s) => s.id == 'demo-sitter'), isTrue);
+      expect(
+        (await r.fetchSitters()).any((s) => s.id == 'demo-sitter'),
+        isTrue,
+      );
     });
 
     test('un reporte se atiende y puede suspender al reportado', () async {
       await as('dueno@doggo.app');
-      await r.createReport(reportedUserId: laura, reason: ReportReason.fakeProfile);
+      await r.createReport(
+        reportedUserId: laura,
+        reason: ReportReason.fakeProfile,
+      );
       await as('admin@doggo.app');
       final report = (await r.fetchReports()).single;
       expect(report.reportedName, 'Laura Gómez');
       expect(report.reporterName, 'Daniela Dueña');
-      await r.resolveReport(report.id, ReportStatus.reviewed, suspendReported: true);
+      await r.resolveReport(
+        report.id,
+        ReportStatus.reviewed,
+        suspendReported: true,
+      );
       expect((await r.fetchReports()).single.status, ReportStatus.reviewed);
       expect((await r.fetchSitters()).any((s) => s.id == laura), isFalse);
-      expect(() => r.resolveReport(report.id, ReportStatus.dismissed), throwsA(isA<ValidationFailure>()));
+      expect(
+        () => r.resolveReport(report.id, ReportStatus.dismissed),
+        throwsA(isA<ValidationFailure>()),
+      );
     });
 
     test('búsqueda por nombre o correo con filtros', () async {
-      expect((await r.searchUsers(query: 'seed.camila')).single.name, 'Camila Herrera');
+      expect(
+        (await r.searchUsers(query: 'seed.camila')).single.name,
+        'Camila Herrera',
+      );
       final admins = await r.searchUsers(role: UserRole.admin);
       expect(admins.single.email, 'admin@doggo.app');
       final pending = await r.searchUsers(status: UserStatus.pendingReview);
       expect(pending, hasLength(2));
     });
 
-    test('un admin no puede suspender a otro admin, al superadmin ni a sí mismo', () async {
-      expect(() => r.setUserSuspended('demo-superadmin', true), throwsA(isA<ValidationFailure>()));
-      expect(() => r.setUserSuspended('demo-admin', true), throwsA(isA<ValidationFailure>()));
-    });
+    test(
+      'un admin no puede suspender a otro admin, al superadmin ni a sí mismo',
+      () async {
+        expect(
+          () => r.setUserSuspended('demo-superadmin', true),
+          throwsA(isA<ValidationFailure>()),
+        );
+        expect(
+          () => r.setUserSuspended('demo-admin', true),
+          throwsA(isA<ValidationFailure>()),
+        );
+      },
+    );
 
-    test('el superadmin sí puede suspender a un admin, pero no a sí mismo', () async {
-      await as('superadmin@doggo.app');
-      await r.setUserSuspended('demo-admin', true);
-      expect((await r.searchUsers(query: 'admin@')).firstWhere((u) => u.id == 'demo-admin').status, UserStatus.suspended);
-      expect(() => r.setUserSuspended('demo-superadmin', true), throwsA(isA<ValidationFailure>()));
-    });
+    test(
+      'el superadmin sí puede suspender a un admin, pero no a sí mismo',
+      () async {
+        await as('superadmin@doggo.app');
+        await r.setUserSuspended('demo-admin', true);
+        expect(
+          (await r.searchUsers(query: 'admin@'))
+              .firstWhere((u) => u.id == 'demo-admin')
+              .status,
+          UserStatus.suspended,
+        );
+        expect(
+          () => r.setUserSuspended('demo-superadmin', true),
+          throwsA(isA<ValidationFailure>()),
+        );
+      },
+    );
 
     test('auditoría: el admin ve lo suyo, el superadmin todo', () async {
       await r.setVerified(laura, true);
@@ -559,7 +779,10 @@ void main() {
     test('un dueño no puede usar el panel', () async {
       await as('dueno@doggo.app');
       expect(() => r.fetchPendingSitters(), throwsA(isA<ValidationFailure>()));
-      expect(() => r.setUserSuspended(laura, true), throwsA(isA<ValidationFailure>()));
+      expect(
+        () => r.setUserSuspended(laura, true),
+        throwsA(isA<ValidationFailure>()),
+      );
     });
 
     test('las cuentas de ejemplo no permiten iniciar sesión', () async {
@@ -567,6 +790,97 @@ void main() {
       expect(
         () => r.signIn(email: 'seed.laura@doggo.test', password: demoPassword),
         throwsA(isA<AuthFailure>()),
+      );
+    });
+  });
+
+  group('zona de servicio y foto', () {
+    late DemoRepository r;
+    setUp(() async {
+      r = DemoRepository();
+      await r.signUp(
+        email: 'zona@test.com',
+        password: 'secreto1',
+        fullName: 'Cuidadora Zona',
+        role: UserRole.sitter,
+        acceptedTerms: true,
+      );
+    });
+
+    Future<void> approveAs(String id) async {
+      await r.signOut();
+      await r.signIn(email: 'admin@doggo.app', password: demoPassword);
+      await r.setSitterApproval(id, approve: true);
+    }
+
+    test(
+      'sin zona de servicio no sale en el mapa aunque esté aprobada',
+      () async {
+        final me = (await r.fetchMySitterProfile()).id;
+        await r.saveMyServices({ServiceType.walk: 20000});
+        await approveAs(me);
+        expect((await r.fetchSitters()).any((s) => s.id == me), isFalse);
+      },
+    );
+
+    test(
+      'con zona: sale en el mapa, con barrio y radio, a 200–300 m de la exacta',
+      () async {
+        const kennedy = LatLng(4.628, -74.15);
+        final me = (await r.fetchMySitterProfile()).id;
+        await r.saveMyServices({ServiceType.walk: 20000});
+        await r.saveMyServiceArea(
+          exact: kennedy,
+          neighborhood: 'Kennedy',
+          radiusKm: 6,
+        );
+        await approveAs(me);
+        final s = (await r.fetchSitters()).firstWhere((s) => s.id == me);
+        expect(s.neighborhood, 'Kennedy');
+        expect(s.radiusKm, 6);
+        final m = const Distance(roundResult: false)
+            .as(LengthUnit.Meter, kennedy, s.location);
+        expect(m, inInclusiveRange(195, 305));
+      },
+    );
+
+    test(
+      'barrio vacío, con teléfono o radio fuera de rango: rechazado',
+      () async {
+        const p = LatLng(4.6, -74.1);
+        expect(
+          () => r.saveMyServiceArea(exact: p, neighborhood: ' ', radiusKm: 5),
+          throwsA(isA<ValidationFailure>()),
+        );
+        expect(
+          () => r.saveMyServiceArea(
+            exact: p,
+            neighborhood: 'Tel 3001112233',
+            radiusKm: 5,
+          ),
+          throwsA(isA<ValidationFailure>()),
+        );
+        expect(
+          () =>
+              r.saveMyServiceArea(exact: p, neighborhood: 'Suba', radiusKm: 40),
+          throwsA(isA<ValidationFailure>()),
+        );
+      },
+    );
+
+    test('foto: solo imágenes de hasta 2 MB', () async {
+      await r.saveMyPhoto(Uint8List.fromList([1, 2, 3]), 'image/png');
+      expect(
+        (await r.fetchMySitterProfile()).avatarUrl,
+        startsWith('data:image/png;base64,'),
+      );
+      expect(
+        () => r.saveMyPhoto(Uint8List(10), 'application/pdf'),
+        throwsA(isA<ValidationFailure>()),
+      );
+      expect(
+        () => r.saveMyPhoto(Uint8List(2 * 1024 * 1024 + 1), 'image/jpeg'),
+        throwsA(isA<ValidationFailure>()),
       );
     });
   });

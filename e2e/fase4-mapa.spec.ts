@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { enterAsOwner, goToLogin, login, openApp, pin, pins, selectService, switchDemo, tab, tiles } from './helpers';
+import { enterAsOwner, goToLogin, login, openApp, pin, pins, selectService, switchDemo, tab, tiles, typeInto } from './helpers';
 
 test.describe('mapa del dueño', () => {
   test('muestra un pin por cuidador aprobado, con el precio del paseo', async ({ page }) => {
@@ -19,18 +19,9 @@ test.describe('mapa del dueño', () => {
     await goToLogin(page);
     await page.getByRole('button', { name: 'Crear cuenta' }).click();
     await page.getByRole('button', { name: 'Soy cuidador' }).click();
-    const fill = async (label: string, text: string) => {
-      const box = page.getByRole('textbox', { name: label });
-      await expect(async () => {
-        await box.click();
-        await box.press('ControlOrMeta+a');
-        await box.pressSequentially(text);
-        await expect(box).toHaveValue(text, { timeout: 1_000 });
-      }).toPass({ timeout: 15_000 });
-    };
-    await fill('Nombre completo', 'Sitter Nuevo');
-    await fill('Correo', 'nuevo.sitter@test.com');
-    await fill('Contraseña', 'secreto1');
+    await typeInto(page, 'Nombre completo', 'Sitter Nuevo');
+    await typeInto(page, 'Correo', 'nuevo.sitter@test.com');
+    await typeInto(page, 'Contraseña', 'secreto1');
     await page.getByRole('checkbox').click();
     await page.getByRole('button', { name: 'Crear cuenta' }).last().click();
     await expect(tab(page, 'Solicitudes')).toBeVisible();

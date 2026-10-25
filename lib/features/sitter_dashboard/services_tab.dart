@@ -11,6 +11,7 @@ import '../../data/models/sitter_summary.dart';
 import '../../data/providers.dart';
 import '../../data/repositories/repository.dart';
 import '../bookings/bookings_providers.dart';
+import 'service_area_card.dart';
 
 /// Servicios con precio y horario semanal del cuidador.
 class ServicesTab extends ConsumerWidget {
@@ -112,6 +113,25 @@ class _ServicesEditorState extends ConsumerState<_ServicesEditor> {
     return ListView(
       padding: const EdgeInsets.fromLTRB(20, 20, 20, 40),
       children: [
+        if (!widget.sitter.locationConfirmed)
+          Container(
+            margin: const EdgeInsets.only(bottom: 16),
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: theme.colorScheme.error.withValues(alpha: 0.08),
+              borderRadius: BorderRadius.circular(14),
+            ),
+            child: Semantics(
+              container: true,
+              child: Text(
+                'Aún no defines tu zona: no saldrás en el mapa hasta hacerlo. Está al final de esta página.',
+                style: TextStyle(
+                  color: theme.colorScheme.error,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ),
+          ),
         Semantics(
           header: true,
           container: true,
@@ -162,6 +182,19 @@ class _ServicesEditorState extends ConsumerState<_ServicesEditor> {
             ),
           ],
         ),
+        const SizedBox(height: 24),
+        Semantics(
+          header: true,
+          container: true,
+          child: Text(
+            'Zona de servicio',
+            style: theme.textTheme.headlineSmall?.copyWith(
+              fontWeight: FontWeight.w900,
+            ),
+          ),
+        ),
+        const SizedBox(height: 12),
+        ServiceAreaCard(sitter: widget.sitter),
       ],
     );
   }
