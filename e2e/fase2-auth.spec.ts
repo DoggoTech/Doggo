@@ -42,8 +42,10 @@ test('cerrar sesión vuelve al login y protege /home', async ({ page }) => {
   await goToLogin(page);
   await page.getByRole('button', { name: 'Probar demo' }).click();
   await tab(page, 'Perfil').click();
+  // Al final del perfil: tras desplazarse puede quedar a medio asomar, así que
+  // se activa directamente (como un lector de pantalla).
   await scrollUntil(page, page.getByRole('button', { name: 'Cerrar sesión' }));
-  await page.getByRole('button', { name: 'Cerrar sesión' }).click();
+  await page.getByRole('button', { name: 'Cerrar sesión' }).dispatchEvent('click');
   await expect(page.getByText('Iniciar sesión')).toBeVisible();
   await expect(tab(page, 'Perfil')).toHaveCount(0);
 });

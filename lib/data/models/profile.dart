@@ -13,7 +13,14 @@ enum UserRole {
   bool get isSelectable => this == owner || this == sitter;
 }
 
-enum UserStatus { pendingReview, approved, suspended }
+enum UserStatus {
+  pendingReview('En revisión'),
+  approved('Activo'),
+  suspended('Suspendido');
+
+  const UserStatus(this.label);
+  final String label;
+}
 
 class Profile {
   const Profile({

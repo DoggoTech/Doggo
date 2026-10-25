@@ -456,6 +456,121 @@ void main() {
     });
   });
 
+  group('administración', () {
+    const natalia = 'a1000000-0000-4000-8000-000000000011';
+    late DemoRepository r;
+
+    Future<void> as(String email) async {
+      await r.signOut();
+      await r.signIn(email: email, password: demoPassword);
+    }
+
+    setUp(() async {
+      r = DemoRepository();
+      await r.signIn(email: 'admin@doggo.app', password: demoPassword);
+    });
+
+    test('ve los 2 cuidadores en revisión del seed', () async {
+      final pending = await r.fetchPendingSitters();
+      expect(pending.map((p) => p.user.name), containsAll(['Natalia Peña', 'Ricardo Salazar']));
+      expect(pending.first.sitter.services, isNotEmpty);
+    });
+
+    test('aprobar a un cuidador lo pone en el mapa y queda auditado', () async {
+      expect((await r.fetchSitters()).any((s) => s.id == natalia), isFalse);
+      await r.setSitterApproval(natalia, approve: true);
+      expect((await r.fetchSitters()).any((s) => s.id == natalia), isTrue);
+      expect((await r.fetchPendingSitters()).any((p) => p.user.id == natalia), isFalse);
+      expect((await r.fetchAdminActions()).single.action, 'approve_sitter');
+    });
+
+    test('rechazar lo deja suspendido y fuera del mapa', () async {
+      await r.setSitterApproval(natalia, approve: false);
+      final row = (await r.searchUsers(query: 'natalia')).single;
+      expect(row.status, UserStatus.suspended);
+      expect((await r.fetchSitters()).any((s) => s.id == natalia), isFalse);
+    });
+
+    test('la insignia Verificado se ve en el mapa', () async {
+      await r.setVerified(laura, false);
+      expect((await r.fetchSitter(laura))!.verified, isFalse);
+      await r.setVerified(laura, true);
+      expect((await r.fetchSitter(laura))!.verified, isTrue);
+    });
+
+    test('un usuario suspendido desaparece del mapa y no puede entrar', () async {
+      await r.setUserSuspended('demo-sitter', true);
+      expect((await r.fetchSitters()).any((s) => s.id == 'demo-sitter'), isFalse);
+      await r.signOut();
+      expect(
+        () => r.signIn(email: 'cuidador@doggo.app', password: demoPassword),
+        throwsA(isA<AccountSuspendedFailure>()),
+      );
+    });
+
+    test('reactivar devuelve al usuario al mapa', () async {
+      await r.setUserSuspended('demo-sitter', true);
+      await r.setUserSuspended('demo-sitter', false);
+      expect((await r.fetchSitters()).any((s) => s.id == 'demo-sitter'), isTrue);
+    });
+
+    test('un reporte se atiende y puede suspender al reportado', () async {
+      await as('dueno@doggo.app');
+      await r.createReport(reportedUserId: laura, reason: ReportReason.fakeProfile);
+      await as('admin@doggo.app');
+      final report = (await r.fetchReports()).single;
+      expect(report.reportedName, 'Laura Gómez');
+      expect(report.reporterName, 'Daniela Dueña');
+      await r.resolveReport(report.id, ReportStatus.reviewed, suspendReported: true);
+      expect((await r.fetchReports()).single.status, ReportStatus.reviewed);
+      expect((await r.fetchSitters()).any((s) => s.id == laura), isFalse);
+      expect(() => r.resolveReport(report.id, ReportStatus.dismissed), throwsA(isA<ValidationFailure>()));
+    });
+
+    test('búsqueda por nombre o correo con filtros', () async {
+      expect((await r.searchUsers(query: 'seed.camila')).single.name, 'Camila Herrera');
+      final admins = await r.searchUsers(role: UserRole.admin);
+      expect(admins.single.email, 'admin@doggo.app');
+      final pending = await r.searchUsers(status: UserStatus.pendingReview);
+      expect(pending, hasLength(2));
+    });
+
+    test('un admin no puede suspender a otro admin, al superadmin ni a sí mismo', () async {
+      expect(() => r.setUserSuspended('demo-superadmin', true), throwsA(isA<ValidationFailure>()));
+      expect(() => r.setUserSuspended('demo-admin', true), throwsA(isA<ValidationFailure>()));
+    });
+
+    test('el superadmin sí puede suspender a un admin, pero no a sí mismo', () async {
+      await as('superadmin@doggo.app');
+      await r.setUserSuspended('demo-admin', true);
+      expect((await r.searchUsers(query: 'admin@')).firstWhere((u) => u.id == 'demo-admin').status, UserStatus.suspended);
+      expect(() => r.setUserSuspended('demo-superadmin', true), throwsA(isA<ValidationFailure>()));
+    });
+
+    test('auditoría: el admin ve lo suyo, el superadmin todo', () async {
+      await r.setVerified(laura, true);
+      await as('superadmin@doggo.app');
+      await r.setUserSuspended('demo-owner', true);
+      expect(await r.fetchAdminActions(), hasLength(2));
+      await as('admin@doggo.app');
+      expect((await r.fetchAdminActions()).single.action, 'verify_sitter');
+    });
+
+    test('un dueño no puede usar el panel', () async {
+      await as('dueno@doggo.app');
+      expect(() => r.fetchPendingSitters(), throwsA(isA<ValidationFailure>()));
+      expect(() => r.setUserSuspended(laura, true), throwsA(isA<ValidationFailure>()));
+    });
+
+    test('las cuentas de ejemplo no permiten iniciar sesión', () async {
+      await r.signOut();
+      expect(
+        () => r.signIn(email: 'seed.laura@doggo.test', password: demoPassword),
+        throwsA(isA<AuthFailure>()),
+      );
+    });
+  });
+
   test('el cuidador de prueba aparece en el mapa demo', () async {
     final s = await repo.fetchSitter('demo-sitter');
     expect(s?.name, 'Carlos Cuidador');

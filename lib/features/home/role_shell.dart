@@ -3,6 +3,9 @@ import 'package:flutter/material.dart';
 import '../../data/models/profile.dart';
 import '../../core/theme/app_colors.dart';
 import '../../shared/widgets/doggo_logo.dart';
+import '../admin/approvals_tab.dart';
+import '../admin/reports_tab.dart';
+import '../admin/users_tab.dart';
 import '../bookings/owner_bookings_tab.dart';
 import '../dogs/dogs_tab.dart';
 import '../map/map_screen.dart';
@@ -37,6 +40,9 @@ Widget _mapTab(BuildContext context) => const MapScreen();
 Widget _requestsTab(BuildContext context) => const RequestsTab();
 Widget _ownerBookingsTab(BuildContext context) => const OwnerBookingsTab();
 Widget _dogsTab(BuildContext context) => const DogsTab();
+Widget _approvalsTab(BuildContext context) => const ApprovalsTab();
+Widget _reportsTab(BuildContext context) => const ReportsTab();
+Widget _usersTab(BuildContext context) => const UsersTab();
 Widget _agendaTab(BuildContext context) => const AgendaTab();
 Widget _servicesTab(BuildContext context) => const ServicesTab();
 
@@ -59,20 +65,22 @@ const _tabsByRole = {
     _Tab(
       'Aprobaciones',
       Icons.verified_user_rounded,
-      'Cuidadores por aprobar.',
+      '',
+      builder: _approvalsTab,
     ),
-    _Tab('Reportes', Icons.flag_rounded, 'Reportes de usuarios.'),
-    _Tab('Usuarios', Icons.group_rounded, 'Gestión de usuarios.'),
+    _Tab('Reportes', Icons.flag_rounded, '', builder: _reportsTab),
+    _Tab('Usuarios', Icons.group_rounded, '', builder: _usersTab),
     _profileTab,
   ],
   UserRole.superadmin: [
     _Tab(
       'Aprobaciones',
       Icons.verified_user_rounded,
-      'Cuidadores por aprobar.',
+      '',
+      builder: _approvalsTab,
     ),
-    _Tab('Reportes', Icons.flag_rounded, 'Reportes de usuarios.'),
-    _Tab('Usuarios', Icons.group_rounded, 'Gestión de usuarios.'),
+    _Tab('Reportes', Icons.flag_rounded, '', builder: _reportsTab),
+    _Tab('Usuarios', Icons.group_rounded, '', builder: _usersTab),
     _Tab('Equipo', Icons.shield_rounded, 'Gobierno del equipo de admins.'),
     _profileTab,
   ],
