@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_theme.dart';
 import '../../data/models/profile.dart';
+import '../../shared/widgets/appear_in.dart';
 
 /// Tarjeta blanca común del panel.
 class AdminCard extends StatelessWidget {
@@ -11,15 +12,17 @@ class AdminCard extends StatelessWidget {
   final Widget child;
 
   @override
-  Widget build(BuildContext context) => Container(
-    margin: const EdgeInsets.only(bottom: 14),
-    padding: const EdgeInsets.all(16),
-    decoration: BoxDecoration(
-      color: Colors.white,
-      borderRadius: BorderRadius.circular(AppTheme.radius),
-      boxShadow: AppTheme.softShadow,
+  Widget build(BuildContext context) => AppearIn(
+    child: Container(
+      margin: const EdgeInsets.only(bottom: 14),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(AppTheme.radius),
+        boxShadow: AppTheme.softShadow,
+      ),
+      child: child,
     ),
-    child: child,
   );
 }
 

@@ -15,7 +15,7 @@ import '../../shared/widgets/pill.dart';
 import 'filters_sheet.dart';
 import 'map_state.dart';
 import 'sitter_list.dart';
-import 'sitter_pin.dart';
+import 'sitter_cluster.dart';
 
 /// Ancho del contenido desde el cual la lista pasa de bottom sheet a panel lateral.
 const _widePanelBreakpoint = 720.0;
@@ -199,12 +199,6 @@ class _MapArea extends ConsumerWidget {
       if (v.sitter.id == selectedId) selected = v;
     }
 
-    // El seleccionado va al final para quedar encima de los demás pines.
-    final ordered = [
-      ...visible.where((v) => v.sitter.id != selectedId),
-      ...visible.where((v) => v.sitter.id == selectedId),
-    ];
-
     return Stack(
       children: [
         Positioned.fill(
@@ -265,19 +259,21 @@ class _MapArea extends ConsumerWidget {
                         ),
                       ),
                     ),
-                  for (final v in ordered)
-                    Marker(
-                      point: v.sitter.location,
-                      width: SitterPin.width,
-                      height: SitterPin.height,
-                      child: SitterPin(
-                        name: v.sitter.name,
-                        price: v.sitter.pinPrice(filters.service),
-                        selected: v.sitter.id == selectedId,
-                        onTap: () => onFocus(v.sitter),
-                      ),
-                    ),
                 ],
+              ),
+              SitterMarkerLayer(
+                sitters: [for (final v in visible) v.sitter],
+                selectedId: selectedId,
+                service: filters.service,
+                onFocus: onFocus,
+                // Acerca hasta que los pines del grupo se separen.
+                onZoomTo: (group) => map.fitCamera(
+                  CameraFit.coordinates(
+                    coordinates: [for (final s in group) s.location],
+                    padding: const EdgeInsets.fromLTRB(80, 140, 80, 80),
+                    maxZoom: noClusterZoom,
+                  ),
+                ),
               ),
               const SimpleAttributionWidget(
                 source: Text('OpenStreetMap contributors'),

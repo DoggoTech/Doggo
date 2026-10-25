@@ -10,6 +10,8 @@ import '../../data/repositories/repository.dart';
 import '../bookings/bookings_providers.dart';
 import '../bookings/contact_box.dart';
 import '../safety/report_sheet.dart';
+import '../../shared/widgets/error_state.dart';
+import '../../shared/widgets/appear_in.dart';
 
 /// Agenda del cuidador: reservas aceptadas (próximas) y completadas.
 class AgendaTab extends ConsumerWidget {
@@ -22,8 +24,10 @@ class AgendaTab extends ConsumerWidget {
         .watch(myBookingsProvider)
         .when(
           loading: () => const Center(child: CircularProgressIndicator()),
-          error: (_, _) =>
-              const Center(child: Text('No pudimos cargar tu agenda.')),
+          error: (_, _) => ErrorState(
+            'No pudimos cargar tu agenda.',
+            onRetry: () => ref.invalidate(myBookingsProvider),
+          ),
           data: (all) {
             final upcoming =
                 all.where((b) => b.status == BookingStatus.accepted).toList()
@@ -58,12 +62,18 @@ class AgendaTab extends ConsumerWidget {
                   )
                 else
                   for (final b in upcoming)
-                    _AgendaCard(key: ValueKey(b.id), booking: b),
+                    AppearIn(
+                      key: ValueKey(b.id),
+                      child: _AgendaCard(booking: b),
+                    ),
                 if (done.isNotEmpty) ...[
                   const SizedBox(height: 20),
                   _Section(title: 'Completadas'),
                   for (final b in done)
-                    _AgendaCard(key: ValueKey(b.id), booking: b),
+                    AppearIn(
+                      key: ValueKey(b.id),
+                      child: _AgendaCard(booking: b),
+                    ),
                 ],
               ],
             );
@@ -93,7 +103,7 @@ class _Section extends StatelessWidget {
 }
 
 class _AgendaCard extends ConsumerStatefulWidget {
-  const _AgendaCard({super.key, required this.booking});
+  const _AgendaCard({required this.booking});
 
   final Booking booking;
 

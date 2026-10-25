@@ -9,6 +9,7 @@ import '../../data/repositories/repository.dart';
 import 'admin_providers.dart';
 import 'admin_widgets.dart';
 import 'audit_list.dart';
+import '../../shared/widgets/error_state.dart';
 
 /// Solo el superadmin: nombrar o quitar admins, suspenderlos y ver toda la
 /// auditoría. La base valida cada acción por su cuenta (RPC `superadmin_*`).
@@ -144,7 +145,10 @@ class _TeamTabState extends ConsumerState<TeamTab> {
             padding: EdgeInsets.all(24),
             child: Center(child: CircularProgressIndicator()),
           ),
-          error: (e, _) => Text('$e'),
+          error: (_, _) => ErrorState(
+            'No pudimos cargar los administradores.',
+            onRetry: () => ref.invalidate(userSearchProvider),
+          ),
           data: (rows) => rows.isEmpty
               ? Semantics(
                   container: true,

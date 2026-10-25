@@ -68,8 +68,16 @@ original del producto.
 - **Unitarias** (`flutter test`) para el repositorio demo y las reglas; **base de datos** (`npm run test:db`).
 - Flujo por fase: rama → implementar → probar → dictamen con guía de prueba → OK del usuario → merge `--no-ff`.
 
+## 5b. Pulido (fase 12)
+
+| Decisión | Motivo |
+|---|---|
+| **Pines agrupados** cuando se tapan en pantalla (grupo con el precio más bajo y el número de cuidadores; tocarlo acerca el mapa). Desde zoom 17 ya no se agrupa, y el seleccionado nunca. | Con 11 cuidadores en Bogotá varios pines quedaban uno encima de otro y no se podían tocar. |
+| Dentro de un grupo, **cada cuidador conserva su propio nodo accesible** | Con lector de pantalla se llega a cada cuidador sin tener que acercar el mapa (y las pruebas e2e siguen encontrando cada pin). |
+| **`ErrorState`** común con "Reintentar" | Antes algunas pantallas mostraban el texto técnico del error. |
+| **`AppearIn`**: fundido corto al cambiar de pestaña y al aparecer una tarjeta | Microanimaciones del contexto; respeta "reducir movimiento" del sistema. |
+
 ## 6. Pendientes
 
 1. **`SupabaseRepository`** y conectar un proyecto real (verificar el tiempo real entre dos dispositivos en menos de 2 s).
-2. **Fase 12**: pulido (agrupar pines solapados, animaciones, estados vacíos; en la tarjeta de solicitud, separar el contador de "Reportar").
-3. **Después del MVP**: beneficios para cuidadores con buena calificación (niveles, destacar en el mapa), cuando haya reseñas reales.
+2. **Después del MVP**: beneficios para cuidadores con buena calificación (niveles, destacar en el mapa), cuando haya reseñas reales.

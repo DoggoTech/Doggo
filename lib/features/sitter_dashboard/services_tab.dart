@@ -12,6 +12,7 @@ import '../../data/providers.dart';
 import '../../data/repositories/repository.dart';
 import '../bookings/bookings_providers.dart';
 import 'service_area_card.dart';
+import '../../shared/widgets/error_state.dart';
 
 /// Servicios con precio y horario semanal del cuidador.
 class ServicesTab extends ConsumerWidget {
@@ -23,8 +24,10 @@ class ServicesTab extends ConsumerWidget {
         .watch(mySitterProfileProvider)
         .when(
           loading: () => const Center(child: CircularProgressIndicator()),
-          error: (_, _) =>
-              const Center(child: Text('No pudimos cargar tus servicios.')),
+          error: (_, _) => ErrorState(
+            'No pudimos cargar tus servicios.',
+            onRetry: () => ref.invalidate(mySitterProfileProvider),
+          ),
           data: (s) => _ServicesEditor(key: ValueKey(s.id), sitter: s),
         );
   }
