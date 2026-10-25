@@ -129,6 +129,22 @@ class _UserRowState extends ConsumerState<_UserRow> {
     return null;
   }
 
+  Future<void> _setVerified(bool verified) async {
+    setState(() => _busy = true);
+    final messenger = ScaffoldMessenger.of(context);
+    try {
+      await ref.read(repositoryProvider).setVerified(widget.user.id, verified);
+      refreshAdminData(ref);
+      messenger.showSnackBar(
+        const SnackBar(content: Text('Insignia actualizada')),
+      );
+    } on ValidationFailure catch (e) {
+      messenger.showSnackBar(SnackBar(content: Text(e.message)));
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
   Future<void> _toggle() async {
     final u = widget.user;
     final suspend = u.status != UserStatus.suspended;
@@ -167,50 +183,74 @@ class _UserRowState extends ConsumerState<_UserRow> {
     final protected = _protectedReason;
     final suspended = u.status == UserStatus.suspended;
     return AdminCard(
-      child: Row(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Expanded(
-            child: Semantics(
-              container: true,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    u.verified ? '${u.name} ✓' : u.name,
-                    style: theme.textTheme.titleMedium?.copyWith(
-                      fontWeight: FontWeight.w900,
-                    ),
+          Row(
+            children: [
+              Expanded(
+                child: Semantics(
+                  container: true,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        u.verified ? '${u.name} ✓' : u.name,
+                        style: theme.textTheme.titleMedium?.copyWith(
+                          fontWeight: FontWeight.w900,
+                        ),
+                      ),
+                      Text(
+                        '${u.email} · ${u.role.label}',
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: AppColors.muted,
+                        ),
+                      ),
+                    ],
                   ),
-                  Text(
-                    '${u.email} · ${u.role.label}',
+                ),
+              ),
+              StatusChip(u.status),
+              const SizedBox(width: 8),
+              if (protected != null)
+                Semantics(
+                  container: true,
+                  label: '$protected: ${u.name}',
+                  excludeSemantics: true,
+                  child: Text(
+                    protected,
                     style: theme.textTheme.bodySmall?.copyWith(
                       color: AppColors.muted,
                     ),
                   ),
-                ],
-              ),
-            ),
-          ),
-          StatusChip(u.status),
-          const SizedBox(width: 8),
-          if (protected != null)
-            Semantics(
-              container: true,
-              label: '$protected: ${u.name}',
-              excludeSemantics: true,
-              child: Text(
-                protected,
-                style: theme.textTheme.bodySmall?.copyWith(
-                  color: AppColors.muted,
+                )
+              else
+                LabeledButton(
+                  text: suspended ? 'Reactivar' : 'Suspender',
+                  label: '${suspended ? 'Reactivar' : 'Suspender'} a ${u.name}',
+                  filled: suspended,
+                  onPressed: _busy ? null : _toggle,
                 ),
-              ),
-            )
-          else
-            LabeledButton(
-              text: suspended ? 'Reactivar' : 'Suspender',
-              label: '${suspended ? 'Reactivar' : 'Suspender'} a ${u.name}',
-              filled: suspended,
-              onPressed: _busy ? null : _toggle,
+            ],
+          ),
+          // La insignia se puede dar o quitar en cualquier momento, también
+          // después de aprobar (p. ej. cuando el cuidador envía su documento).
+          if (u.role == UserRole.sitter)
+            Row(
+              children: [
+                Semantics(
+                  container: true,
+                  label: 'Verificado: ${u.name}',
+                  toggled: u.verified,
+                  onTap: _busy ? null : () => _setVerified(!u.verified),
+                  excludeSemantics: true,
+                  child: Switch(
+                    value: u.verified,
+                    onChanged: _busy ? null : _setVerified,
+                  ),
+                ),
+                const Text('Verificado (documento y selfie revisados)'),
+              ],
             ),
         ],
       ),

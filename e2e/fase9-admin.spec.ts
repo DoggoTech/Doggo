@@ -187,6 +187,24 @@ test.describe('usuarios', () => {
     await expect(btn(page, 'Suspender a Ana Admin')).toBeVisible();
   });
 
+  test('verificar a un cuidador ya aprobado desde Usuarios (y quitar la insignia)', async ({ page }) => {
+    await asAdmin(page);
+    await searchUser(page, 'Julián');
+    await toggle(page, 'Verificado: Julián Castro').click();
+    await expect(seen(page, 'Insignia actualizada')).toBeVisible();
+    await typeInto(page, 'Buscar por nombre o correo', 'Laura');
+    await toggle(page, 'Verificado: Laura Gómez').click();
+    await expect(seen(page, 'Insignia actualizada').first()).toBeVisible();
+
+    await switchDemo(page, 'Dueño');
+    await openProfileFromMap(page, 'Julián Castro');
+    await expect(seen(page, /Julián Castro\s*Verificado/)).toBeVisible();
+    await btn(page, 'Back').click();
+    await openProfileFromMap(page, 'Laura Gómez');
+    await expect(seen(page, /^Laura Gómez$/)).toBeVisible();
+    await expect(seen(page, /Laura Gómez\s*Verificado/)).toHaveCount(0);
+  });
+
   test('filtros por rol y estado', async ({ page }) => {
     await asAdmin(page);
     await tab(page, 'Usuarios').click();

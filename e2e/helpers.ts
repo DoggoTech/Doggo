@@ -128,7 +128,9 @@ export async function openSitterProfile(page: Page, name: string) {
 export async function openProfileFromMap(page: Page, name: string) {
   await expect(pin(page, name)).toBeAttached({ timeout: 15_000 });
   await pin(page, name).dispatchEvent('click');
-  await page.getByRole('button', { name: 'Ver perfil' }).click();
+  // Si había otro cuidador seleccionado, por un instante conviven la tarjeta que
+  // se va y la nueva: la nueva es la última.
+  await page.getByRole('button', { name: 'Ver perfil' }).last().click();
   await expect(page.getByText('Perfil del cuidador')).toBeVisible();
 }
 
