@@ -9,6 +9,7 @@ import '../../data/providers.dart';
 import '../../data/repositories/repository.dart';
 import '../../shared/widgets/pill.dart';
 import '../sitter_dashboard/countdown.dart';
+import '../safety/report_sheet.dart';
 import 'bookings_providers.dart';
 import 'contact_box.dart';
 import 'review_sheet.dart';
@@ -310,6 +311,15 @@ class _BookingCardState extends ConsumerState<_BookingCard> {
                   style: FilledButton.styleFrom(minimumSize: const Size(0, 44)),
                   child: Text('Calificar a $first'),
                 ),
+              TextButton(
+                onPressed: () => showReportSheet(
+                  context,
+                  userId: b.sitterId,
+                  userName: b.sitterName,
+                  bookingId: b.id,
+                ),
+                child: const Text('Reportar'),
+              ),
               if (status == BookingStatus.completed && b.reviewed)
                 Semantics(
                   container: true,

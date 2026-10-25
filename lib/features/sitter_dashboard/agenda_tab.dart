@@ -9,6 +9,7 @@ import '../../data/providers.dart';
 import '../../data/repositories/repository.dart';
 import '../bookings/bookings_providers.dart';
 import '../bookings/contact_box.dart';
+import '../safety/report_sheet.dart';
 
 /// Agenda del cuidador: reservas aceptadas (próximas) y completadas.
 class AgendaTab extends ConsumerWidget {
@@ -170,6 +171,18 @@ class _AgendaCardState extends ConsumerState<_AgendaCard> {
             ],
           ),
           if (accepted) ...[ContactBox(booking: b), _DogNotes(booking: b)],
+          Align(
+            alignment: Alignment.centerLeft,
+            child: TextButton(
+              onPressed: () => showReportSheet(
+                context,
+                userId: b.ownerId,
+                userName: b.ownerName,
+                bookingId: b.id,
+              ),
+              child: Text('Reportar a ${b.ownerName.split(' ').first}'),
+            ),
+          ),
         ],
       ),
     );

@@ -38,7 +38,12 @@ class Profile {
   final String? bio;
   final DateTime? termsAcceptedAt;
 
-  Profile copyWith({UserRole? role, UserStatus? status, bool? verified}) {
+  Profile copyWith({
+    UserRole? role,
+    UserStatus? status,
+    bool? verified,
+    String? bio,
+  }) {
     return Profile(
       id: id,
       email: email,
@@ -47,7 +52,7 @@ class Profile {
       status: status ?? this.status,
       verified: verified ?? this.verified,
       avatarUrl: avatarUrl,
-      bio: bio,
+      bio: bio ?? this.bio,
       termsAcceptedAt: termsAcceptedAt,
     );
   }

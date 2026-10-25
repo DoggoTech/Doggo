@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
+
+import '../../core/router/app_router.dart';
 
 import '../../data/models/profile.dart';
 import '../../data/providers.dart';
@@ -94,6 +97,19 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
           title: const Text(
             'Soy mayor de 18 años y acepto los términos y la política de privacidad',
           ),
+        ),
+        Wrap(
+          alignment: WrapAlignment.center,
+          children: [
+            TextButton(
+              onPressed: () => context.push(Routes.terms),
+              child: const Text('Ver términos'),
+            ),
+            TextButton(
+              onPressed: () => context.push(Routes.privacy),
+              child: const Text('Ver política de privacidad'),
+            ),
+          ],
         ),
         const SizedBox(height: 12),
         if (_error != null) FormErrorText(_error!),

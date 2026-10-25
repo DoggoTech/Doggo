@@ -3,6 +3,7 @@ import '../models/booking.dart';
 import '../models/contact_info.dart';
 import '../models/dog.dart';
 import '../models/profile.dart';
+import '../models/report.dart';
 import '../models/review.dart';
 import '../models/service_type.dart';
 import '../models/sitter_summary.dart';
@@ -132,4 +133,16 @@ abstract class Repository {
     required int rating,
     String? comment,
   });
+
+  /// Reporta a otro usuario (dueño o cuidador aprobado). Si se pasa
+  /// [bookingId], ambos deben participar en esa reserva.
+  Future<void> createReport({
+    required String reportedUserId,
+    required ReportReason reason,
+    String? bookingId,
+    String? comment,
+  });
+
+  /// Bio pública del cuidador (máx. 600, sin teléfonos, correos ni enlaces).
+  Future<void> saveMyBio(String bio);
 }
