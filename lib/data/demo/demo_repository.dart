@@ -1,6 +1,10 @@
 import 'dart:async';
 
+import 'package:latlong2/latlong.dart';
+
 import '../models/profile.dart';
+import '../models/service_type.dart';
+import '../models/sitter_summary.dart';
 import '../repositories/repository.dart';
 
 const demoPassword = 'doggo123';
@@ -175,6 +179,12 @@ class DemoRepository implements Repository {
     return updated;
   }
 
+  @override
+  Future<List<SitterSummary>> fetchSitters() async {
+    await _latency();
+    return List.unmodifiable(_demoSitters);
+  }
+
   /// Se conecta con las reservas en la fase 5.
   bool _hasActiveBookings(Profile profile) => false;
 
@@ -189,3 +199,132 @@ class _DemoUser {
 
   _DemoUser withProfile(Profile p) => _DemoUser(p, password);
 }
+
+/// Los 10 cuidadores aprobados de `supabase/seed.sql` (Bogotá), con la
+/// ubicación aproximada ya desplazada. Los dos del seed en revisión no están
+/// aquí a propósito: no aparecen en el mapa hasta que un admin los apruebe.
+const _demoSitters = <SitterSummary>[
+  SitterSummary(
+    id: 'a1000000-0000-4000-8000-000000000001',
+    name: 'Laura Gómez',
+    neighborhood: 'Chapinero',
+    bio: 'Veterinaria de profesión. Tu perro tendrá paseos largos y mucho cariño.',
+    location: LatLng(4.65026, -74.06209),
+    radiusKm: 4,
+    verified: true,
+    ratingAvg: 4.9,
+    ratingCount: 23,
+    avatarUrl: 'https://i.pravatar.cc/300?img=47',
+    services: {ServiceType.walk: 25000, ServiceType.homeVisit: 35000, ServiceType.daycare: 60000},
+  ),
+  SitterSummary(
+    id: 'a1000000-0000-4000-8000-000000000002',
+    name: 'Andrés Rojas',
+    neighborhood: 'Usaquén',
+    bio: 'Casa con patio grande. Experiencia con razas grandes y cachorros.',
+    location: LatLng(4.71100, -74.02836),
+    radiusKm: 6,
+    verified: true,
+    ratingAvg: 4.8,
+    ratingCount: 41,
+    avatarUrl: 'https://i.pravatar.cc/300?img=12',
+    services: {ServiceType.walk: 30000, ServiceType.boarding: 85000, ServiceType.daycare: 70000},
+  ),
+  SitterSummary(
+    id: 'a1000000-0000-4000-8000-000000000003',
+    name: 'Camila Herrera',
+    neighborhood: 'Cedritos',
+    bio: 'Entrenadora canina certificada. Paseos con refuerzo positivo.',
+    location: LatLng(4.72073, -74.04103),
+    radiusKm: 5,
+    verified: true,
+    ratingAvg: 4.6,
+    ratingCount: 17,
+    avatarUrl: 'https://i.pravatar.cc/300?img=32',
+    services: {ServiceType.walk: 28000, ServiceType.training: 90000},
+  ),
+  SitterSummary(
+    id: 'a1000000-0000-4000-8000-000000000004',
+    name: 'Julián Castro',
+    neighborhood: 'Teusaquillo',
+    bio: 'Estudiante de zootecnia. Hospedaje familiar cerca del parque.',
+    location: LatLng(4.63964, -74.08632),
+    radiusKm: 3,
+    ratingAvg: 4.2,
+    ratingCount: 6,
+    avatarUrl: 'https://i.pravatar.cc/300?img=15',
+    services: {ServiceType.boarding: 65000, ServiceType.walk: 20000},
+  ),
+  SitterSummary(
+    id: 'a1000000-0000-4000-8000-000000000005',
+    name: 'Valentina Ruiz',
+    neighborhood: 'Suba',
+    bio: 'Amante de los perros pequeños. Visitas a domicilio y guardería.',
+    location: LatLng(4.74080, -74.09208),
+    radiusKm: 5,
+    ratingAvg: 4.5,
+    ratingCount: 12,
+    avatarUrl: 'https://i.pravatar.cc/300?img=45',
+    services: {ServiceType.homeVisit: 30000, ServiceType.daycare: 55000, ServiceType.walk: 22000},
+  ),
+  SitterSummary(
+    id: 'a1000000-0000-4000-8000-000000000006',
+    name: 'Mateo Vargas',
+    neighborhood: 'Kennedy',
+    bio: 'Tengo dos labradores y mucho espacio. Hospedaje nocturno.',
+    location: LatLng(4.63055, -74.15009),
+    radiusKm: 4,
+    verified: true,
+    ratingAvg: 4.0,
+    ratingCount: 8,
+    avatarUrl: 'https://i.pravatar.cc/300?img=53',
+    services: {ServiceType.boarding: 60000, ServiceType.walk: 18000},
+  ),
+  SitterSummary(
+    id: 'a1000000-0000-4000-8000-000000000007',
+    name: 'Daniela Moreno',
+    neighborhood: 'El Chicó',
+    bio: 'Peluquera canina con 8 años de experiencia.',
+    location: LatLng(4.67084, -74.05020),
+    radiusKm: 6,
+    verified: true,
+    ratingAvg: 5.0,
+    ratingCount: 31,
+    avatarUrl: 'https://i.pravatar.cc/300?img=25',
+    services: {ServiceType.grooming: 120000, ServiceType.walk: 35000},
+  ),
+  SitterSummary(
+    id: 'a1000000-0000-4000-8000-000000000008',
+    name: 'Sebastián Ortiz',
+    neighborhood: 'Fontibón',
+    bio: 'Corredor y ciclista: ideal para perros con mucha energía.',
+    location: LatLng(4.66845, -74.14328),
+    radiusKm: 8,
+    ratingAvg: 3.8,
+    ratingCount: 5,
+    avatarUrl: 'https://i.pravatar.cc/300?img=59',
+    services: {ServiceType.walk: 24000, ServiceType.training: 80000},
+  ),
+  SitterSummary(
+    id: 'a1000000-0000-4000-8000-000000000009',
+    name: 'Isabela Mejía',
+    neighborhood: 'Engativá',
+    bio: 'Cuido perros senior y con necesidades especiales.',
+    location: LatLng(4.69750, -74.11086),
+    radiusKm: 4,
+    ratingAvg: 4.7,
+    ratingCount: 14,
+    avatarUrl: 'https://i.pravatar.cc/300?img=44',
+    services: {ServiceType.homeVisit: 32000, ServiceType.boarding: 75000},
+  ),
+  SitterSummary(
+    id: 'a1000000-0000-4000-8000-000000000010',
+    name: 'Felipe Cárdenas',
+    neighborhood: 'La Candelaria',
+    bio: 'Apartamento en el centro. Paseos y guardería de día.',
+    location: LatLng(4.59586, -74.07507),
+    radiusKm: 3,
+    avatarUrl: 'https://i.pravatar.cc/300?img=68',
+    services: {ServiceType.walk: 21000, ServiceType.daycare: 50000},
+  ),
+];
