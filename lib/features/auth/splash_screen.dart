@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../core/prefs.dart';
 import '../../core/router/app_router.dart';
+import '../../data/providers.dart';
 import '../../shared/widgets/doggo_logo.dart';
 
 class SplashScreen extends ConsumerStatefulWidget {
@@ -28,6 +29,10 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
 
   void _next() {
     if (!mounted) return;
+    if (ref.read(authStateProvider).value != null) {
+      context.go(Routes.home);
+      return;
+    }
     final seen =
         ref.read(sharedPreferencesProvider).getBool(onboardingSeenKey) ?? false;
     context.go(seen ? Routes.login : Routes.onboarding);
