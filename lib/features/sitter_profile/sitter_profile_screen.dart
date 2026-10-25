@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
 
 import '../../core/format.dart';
 import '../../core/theme/app_colors.dart';
@@ -10,6 +9,7 @@ import '../../data/models/review.dart';
 import '../../data/models/service_type.dart';
 import '../../data/models/sitter_summary.dart';
 import '../../data/providers.dart';
+import '../booking/booking_sheet.dart';
 import '../map/sitter_list.dart';
 import 'sitter_providers.dart';
 
@@ -44,7 +44,7 @@ class SitterProfileScreen extends ConsumerWidget {
                   child: Padding(
                     padding: const EdgeInsets.fromLTRB(20, 8, 20, 16),
                     child: FilledButton(
-                      onPressed: () => context.push('/sitter/$sitterId/book'),
+                      onPressed: () => showBookingSheet(context, sitter.value!),
                       child: const Text('Reservar'),
                     ),
                   ),

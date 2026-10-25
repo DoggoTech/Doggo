@@ -25,7 +25,7 @@ class ValidationFailure implements Exception {
 
 class AccountSuspendedFailure extends AuthFailure {
   const AccountSuspendedFailure()
-      : super('Tu cuenta está suspendida. Contacta a soporte de Doggo.');
+    : super('Tu cuenta está suspendida. Contacta a soporte de Doggo.');
 }
 
 /// Contrato único de datos de la app. La UI solo habla con esta interfaz;
@@ -68,7 +68,11 @@ abstract class Repository {
   /// Perros del dueño con sesión.
   Future<List<Dog>> fetchMyDogs();
 
-  Future<Dog> addDog({required String name, required DogSize size, String? breed});
+  Future<Dog> addDog({
+    required String name,
+    required DogSize size,
+    String? breed,
+  });
 
   /// Crea una reserva `pending`. Valida como el trigger de la base: fecha
   /// futura, fin posterior al inicio, dueño y cuidador aprobados, perro propio

@@ -122,6 +122,8 @@ create table public.bookings (
   total_cop    integer not null check (total_cop between 5000 and 20000000),
   status       public.booking_status not null default 'pending',
   created_at   timestamptz not null default now(),
+  -- Hasta cuándo puede responder el cuidador (lo fija el trigger de insert).
+  response_deadline timestamptz not null,
   constraint bookings_distinct_parties check (owner_id <> sitter_id),
   constraint bookings_end_after_start  check (end_at > start_at)
 );
@@ -356,7 +358,14 @@ begin
     if new.start_at <= now() then
       raise exception 'start_in_past' using errcode = '22023';
     end if;
+    -- Al menos 1 h de anticipación: deja 30 min mínimo para que el cuidador responda.
+    if new.start_at < now() + interval '1 hour' then
+      raise exception 'start_too_soon' using errcode = '22023';
+    end if;
   end if;
+
+  -- El cuidador responde en 2 h, o hasta 30 min antes del inicio si es antes.
+  new.response_deadline := least(now() + interval '2 hours', new.start_at - interval '30 minutes');
 
   if not private.is_approved(new.owner_id, 'owner') then
     raise exception 'owner_not_allowed' using errcode = '22023';
@@ -408,12 +417,18 @@ begin
   or new.start_at     is distinct from old.start_at
   or new.end_at       is distinct from old.end_at
   or new.total_cop    is distinct from old.total_cop
-  or new.created_at   is distinct from old.created_at then
+  or new.created_at   is distinct from old.created_at
+  or new.response_deadline is distinct from old.response_deadline then
     raise exception 'immutable_booking_column' using errcode = '42501';
   end if;
 
   if new.status is not distinct from old.status then
     return new;
+  end if;
+
+  -- Vencido el plazo, el cuidador ya no puede responder la solicitud.
+  if uid = old.sitter_id and old.status = 'pending' and now() >= old.response_deadline then
+    raise exception 'response_deadline_passed' using errcode = '22023';
   end if;
 
   if uid = old.sitter_id and private.is_approved(uid, 'sitter')

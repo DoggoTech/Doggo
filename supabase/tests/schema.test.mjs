@@ -366,6 +366,56 @@ describe('reservas: validaciones en la base', () => {
       rejects(err, /start_in_past/);
     }));
 
+  test('el cuidador tiene 2 horas para responder (o hasta 30 min antes del inicio)', () =>
+    tx(async (t) => {
+      const far = await book(t); // empieza en 2 días: plazo = ahora + 2 h
+      const [a] = await t.q(`select extract(epoch from response_deadline - now()) / 60 as min from bookings where id = $1`, [far.id]);
+      assert.ok(Math.abs(a.min - 120) < 1, `plazo ${a.min} min`);
+
+      const [near] = await t.as(IDS.marcela, () =>
+        t.q(
+          `insert into bookings (owner_id, sitter_id, dog_id, service_type, start_at, end_at, total_cop)
+           values ($1, $2, $3, 'walk', now() + interval '90 minutes', now() + interval '150 minutes', 1)
+           returning extract(epoch from response_deadline - now()) / 60 as min`,
+          [IDS.marcela, IDS.laura, IDS.rocky],
+        ),
+      );
+      assert.ok(Math.abs(near.min - 60) < 1, `inicio en 90 min: plazo ${near.min} min`);
+    }));
+
+  test('reservar con menos de 1 hora de anticipación se rechaza', () =>
+    tx(async (t) => {
+      const err = await t.as(IDS.marcela, () =>
+        t.fails(
+          `insert into bookings (owner_id, sitter_id, dog_id, service_type, start_at, end_at, total_cop)
+           values ($1, $2, $3, 'walk', now() + interval '40 minutes', now() + interval '100 minutes', 1)`,
+          [IDS.marcela, IDS.laura, IDS.rocky],
+        ),
+      );
+      rejects(err, /start_too_soon/);
+    }));
+
+  test('vencido el plazo, el cuidador ya no puede aceptar ni rechazar', () =>
+    tx(async (t) => {
+      const { id } = await book(t);
+      await t.q(`update bookings set response_deadline = now() - interval '1 minute' where id = $1`, [id]);
+      rejects(
+        await t.as(IDS.laura, () => t.fails(`update bookings set status = 'accepted' where id = $1`, [id])),
+        /response_deadline_passed/,
+      );
+      // El dueño sí puede cancelar su solicitud vencida.
+      await t.as(IDS.marcela, () => t.q(`update bookings set status = 'cancelled' where id = $1`, [id]));
+    }));
+
+  test('nadie puede mover el plazo de respuesta', () =>
+    tx(async (t) => {
+      const { id } = await book(t);
+      rejects(
+        await t.as(IDS.laura, () => t.fails(`update bookings set response_deadline = now() + interval '9 days' where id = $1`, [id])),
+        /permission denied/,
+      );
+    }));
+
   test('end_at debe ser posterior a start_at', () =>
     tx(async (t) => {
       const err = await t.as(IDS.marcela, () =>

@@ -13,8 +13,12 @@ int bookingUnits(ServiceType service, DateTime start, DateTime end) {
   return 1;
 }
 
-int bookingTotal(ServiceType service, int price, DateTime start, DateTime end) =>
-    price * bookingUnits(service, start, end);
+int bookingTotal(
+  ServiceType service,
+  int price,
+  DateTime start,
+  DateTime end,
+) => price * bookingUnits(service, start, end);
 
 /// Fin de la reserva según el servicio y la cantidad elegida:
 /// paseo 30/60 min; guardería N días (de 10 h); hospedaje N noches; el resto 1 h.

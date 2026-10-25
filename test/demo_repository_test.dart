@@ -80,6 +80,20 @@ void main() {
       expect(() => book(start: past), throwsA(isA<ValidationFailure>()));
     });
 
+    test('el cuidador tiene 2 h para responder, o hasta 30 min antes del inicio', () async {
+      final b = await book();
+      expect(b.responseDeadline.difference(b.createdAt), const Duration(hours: 2));
+
+      final soon = DateTime.now().add(const Duration(minutes: 90));
+      final near = await book(start: soon);
+      expect(near.responseDeadline, soon.subtract(const Duration(minutes: 30)));
+    });
+
+    test('menos de 1 hora de anticipación: rechazada', () async {
+      final soon = DateTime.now().add(const Duration(minutes: 40));
+      expect(() => book(start: soon), throwsA(isA<ValidationFailure>()));
+    });
+
     test('fin antes del inicio: rechazada', () async {
       expect(
         () => book(end: tomorrow9.subtract(const Duration(minutes: 1))),

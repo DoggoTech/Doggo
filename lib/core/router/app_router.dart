@@ -2,13 +2,11 @@ import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
-import '../../data/models/profile.dart';
 import '../../data/providers.dart';
 import '../../features/auth/login_screen.dart';
 import '../../features/auth/onboarding_screen.dart';
 import '../../features/auth/register_screen.dart';
 import '../../features/auth/splash_screen.dart';
-import '../../features/booking/booking_screen.dart';
 import '../../features/home/home_screen.dart';
 import '../../features/sitter_profile/sitter_profile_screen.dart';
 
@@ -34,11 +32,10 @@ final routerProvider = Provider<GoRouter>((ref) {
       final signedIn = profile != null;
       final path = state.matchedLocation;
       final isGuestRoute = path == Routes.login || path == Routes.register;
-      final isPublic = isGuestRoute || path == Routes.splash || path == Routes.onboarding;
+      final isPublic =
+          isGuestRoute || path == Routes.splash || path == Routes.onboarding;
       if (!signedIn && !isPublic) return Routes.login;
       if (signedIn && isGuestRoute) return Routes.home;
-      // Solo los dueños reservan.
-      if (path.endsWith('/book') && profile?.role != UserRole.owner) return Routes.home;
       return null;
     },
     routes: [
@@ -64,13 +61,8 @@ final routerProvider = Provider<GoRouter>((ref) {
       ),
       GoRoute(
         path: '/sitter/:id',
-        builder: (context, state) => SitterProfileScreen(sitterId: state.pathParameters['id']!),
-        routes: [
-          GoRoute(
-            path: 'book',
-            builder: (context, state) => BookingScreen(sitterId: state.pathParameters['id']!),
-          ),
-        ],
+        builder: (context, state) =>
+            SitterProfileScreen(sitterId: state.pathParameters['id']!),
       ),
     ],
   );

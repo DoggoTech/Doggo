@@ -27,6 +27,7 @@ class Booking {
     required this.totalCop,
     required this.status,
     required this.createdAt,
+    required this.responseDeadline,
   });
 
   final String id;
@@ -41,4 +42,7 @@ class Booking {
   final int totalCop;
   final BookingStatus status;
   final DateTime createdAt;
+
+  /// Hasta cuándo puede aceptar o rechazar el cuidador.
+  final DateTime responseDeadline;
 }

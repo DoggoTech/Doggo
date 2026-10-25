@@ -4,22 +4,58 @@ import { goToHash, goToLogin, login, openSitterProfile, pins, seen, tab, typeInt
 const btn = (page: Page, name: string | RegExp) =>
   page.getByRole('button', { name, exact: typeof name === 'string' });
 
-async function startBooking(page: Page, sitter: string) {
+async function openSheet(page: Page, sitter: string) {
   await openSitterProfile(page, sitter);
   await btn(page, 'Reservar').click();
-  await expect(btn(page, 'Confirmar reserva')).toBeVisible();
+  await expect(btn(page, 'Enviar solicitud')).toBeVisible();
+}
+
+/** Valor que muestra un selector de la hoja, p. ej. "Día: Mañana". */
+const value = (page: Page, title: string, v: string | RegExp) =>
+  typeof v === 'string' ? seen(page, new RegExp(`^${title}: ${v.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`)) : seen(page, v);
+
+async function readValue(page: Page, title: string) {
+  const el = page.getByText(new RegExp(`^${title}: `)).or(page.getByLabel(new RegExp(`^${title}: `))).first();
+  const text = (await el.getAttribute('aria-label')) ?? (await el.textContent()) ?? '';
+  return text.replace(`${title}: `, '').trim();
 }
 
 /**
- * Elige día y hora. Al elegir el día aparece la sección de horas y la pantalla
- * se reacomoda; se confirma que la hora quedó elegida viendo el total.
+ * Pulsa un botón −/+ y espera a que cambie el valor que muestra. Devuelve
+ * `false` si ya no se puede avanzar (botón inactivo o valor sin cambio).
+ * Flutter marca el botón como inactivo un instante después del toque, por eso
+ * se mira el valor y no solo el estado del botón.
  */
+async function step(page: Page, title: string, name: string) {
+  const b = btn(page, name);
+  if (!(await b.isEnabled())) return false;
+  const before = await readValue(page, title);
+  await b.click({ timeout: 2_000 }).catch(() => {});
+  try {
+    await expect.poll(() => readValue(page, title), { timeout: 1_500 }).not.toBe(before);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+async function stepToEnd(page: Page, title: string, name: string) {
+  for (let i = 0; i < 40 && (await step(page, title, name)); i++);
+}
+
+/** Lleva un selector −/+ al mínimo y luego avanza hasta el valor buscado. */
+async function stepTo(page: Page, title: string, target: string, prev: string, next: string) {
+  await stepToEnd(page, title, prev);
+  for (let i = 0; i < 40; i++) {
+    if ((await readValue(page, title)) === target) return;
+    if (!(await step(page, title, next))) break;
+  }
+  expect(await readValue(page, title)).toBe(target);
+}
+
 async function pickWhen(page: Page, day = 'Mañana', hour = '9:00') {
-  await btn(page, day).click();
-  await expect(async () => {
-    await btn(page, hour).click();
-    await expect(seen(page, /Total \$[\d.]+/)).toBeVisible({ timeout: 1_500 });
-  }).toPass({ timeout: 20_000 });
+  await stepTo(page, 'Día', day, 'Día anterior', 'Día siguiente');
+  await stepTo(page, 'Hora', hour, 'Hora anterior', 'Hora siguiente');
 }
 
 test.describe('perfil del cuidador', () => {
@@ -53,66 +89,77 @@ test.describe('perfil del cuidador', () => {
   });
 });
 
-test.describe('reservar', () => {
+test.describe('reservar (hoja compacta)', () => {
   // Flujos largos (registro, reserva y vuelta): más margen cuando corre todo en paralelo.
   test.describe.configure({ timeout: 60_000 });
 
-  test('paseo: elegir todo, ver el total y confirmar', async ({ page }) => {
-    await startBooking(page, 'Laura Gómez');
-    await expect(btn(page, 'Confirmar reserva')).toBeDisabled();
+  test('paseo: elegir perro, día y hora, ver el total y enviar', async ({ page }) => {
+    await openSheet(page, 'Laura Gómez');
+    await expect(value(page, 'Duración', '60 min')).toBeVisible(); // paseo por defecto
+    await expect(btn(page, 'Enviar solicitud')).toBeDisabled(); // falta el perro (tiene dos)
 
-    await btn(page, 'Paseo · $25.000').click();
-    await expect(btn(page, '60 min')).toHaveAttribute('aria-selected', 'true').catch(async () => {
-      await btn(page, '60 min').click();
-    });
     await btn(page, 'Rocky').click();
     await pickWhen(page);
-
     await expect(seen(page, 'Total $25.000')).toBeVisible();
-    await expect(seen(page, '1 paseo × $25.000')).toBeVisible();
-    await expect(btn(page, 'Confirmar reserva')).toBeEnabled();
-    await btn(page, 'Confirmar reserva').click();
+    await expect(seen(page, /^1 paseo × \$25\.000/)).toBeVisible();
+    await expect(seen(page, /^Laura tiene hasta .+ para responder\.$/)).toBeVisible();
 
+    await btn(page, 'Enviar solicitud').click();
     await expect(seen(page, '¡Solicitud enviada!')).toBeVisible();
     await expect(seen(page, 'Estado: Pendiente')).toBeVisible();
     await btn(page, 'Volver al mapa').click();
     await expect(pins(page).first()).toBeAttached();
   });
 
-  test('hospedaje de 3 noches: el total multiplica por noche', async ({ page }) => {
-    await startBooking(page, 'Andrés Rojas');
+  test('hospedaje de 3 noches con + y −: el total multiplica por noche', async ({ page }) => {
+    await openSheet(page, 'Andrés Rojas');
     await btn(page, 'Hospedaje nocturno · $85.000').click();
     await btn(page, 'Más noches').click();
     await btn(page, 'Más noches').click();
-    await expect(seen(page, '3 noches')).toBeVisible();
+    await btn(page, 'Más noches').click();
+    await btn(page, 'Menos noches').click();
+    await expect(value(page, 'Noches', '3 noches')).toBeVisible();
     await btn(page, 'Luna').click();
     await pickWhen(page, 'Mañana', '10:00');
-    await expect(seen(page, '3 noches × $85.000')).toBeVisible();
+    await expect(seen(page, /^3 noches × \$85\.000/)).toBeVisible();
     await expect(seen(page, 'Total $255.000')).toBeVisible();
-    await btn(page, 'Confirmar reserva').click();
+    await btn(page, 'Enviar solicitud').click();
     await expect(seen(page, '¡Solicitud enviada!')).toBeVisible();
   });
 
   test('guardería de 2 días', async ({ page }) => {
-    await startBooking(page, 'Laura Gómez');
+    await openSheet(page, 'Laura Gómez');
     await btn(page, 'Guardería de día · $60.000').click();
     await btn(page, 'Más días').click();
     await btn(page, 'Rocky').click();
-    await pickWhen(page);
     await expect(seen(page, 'Total $120.000')).toBeVisible();
   });
 
-  test('las horas que ya pasaron hoy no se pueden elegir', async ({ page }) => {
-    await startBooking(page, 'Laura Gómez');
-    await btn(page, 'Hoy').click();
-    const now = new Date();
-    if (now.getHours() >= 7) await expect(btn(page, '7:00')).toBeDisabled();
-    if (now.getHours() < 19) await expect(btn(page, '19:00')).toBeEnabled();
-    await btn(page, 'Mañana').click();
-    await expect(btn(page, '7:00')).toBeEnabled();
+  test('la hora más temprana deja al menos 1 hora para que el cuidador responda', async ({ page }) => {
+    await openSheet(page, 'Laura Gómez');
+    await stepToEnd(page, 'Día', 'Día anterior');
+    await stepToEnd(page, 'Hora', 'Hora anterior');
+    const day = await readValue(page, 'Día');
+    const [h, m] = (await readValue(page, 'Hora')).split(':').map(Number);
+    if (day === 'Hoy') {
+      const now = new Date();
+      const minutesAhead = h * 60 + m - (now.getHours() * 60 + now.getMinutes());
+      expect(minutesAhead).toBeGreaterThanOrEqual(59);
+    } else {
+      expect(`${h}:${String(m).padStart(2, '0')}`).toBe('7:00'); // primer día disponible empieza a las 7
+    }
   });
 
-  test('un dueño nuevo sin perros lo agrega desde la reserva', async ({ page }) => {
+  test('la franja de horas va de 7:00 a 19:00', async ({ page }) => {
+    await openSheet(page, 'Laura Gómez');
+    await stepTo(page, 'Día', 'Mañana', 'Día anterior', 'Día siguiente');
+    await stepToEnd(page, 'Hora', 'Hora anterior');
+    expect(await readValue(page, 'Hora')).toBe('7:00');
+    await stepToEnd(page, 'Hora', 'Hora siguiente');
+    expect(await readValue(page, 'Hora')).toBe('19:00');
+  });
+
+  test('un dueño nuevo sin perros lo agrega desde la hoja y queda elegido', async ({ page }) => {
     await goToLogin(page);
     await btn(page, 'Crear cuenta').click();
     await typeInto(page, 'Nombre completo', 'Dueña Nueva');
@@ -125,7 +172,6 @@ test.describe('reservar', () => {
     await page.getByRole('button', { name: /^Cuidador Laura Gómez, / }).dispatchEvent('click');
     await btn(page, 'Ver perfil').click();
     await btn(page, 'Reservar').click();
-    await btn(page, 'Paseo · $25.000').click();
     await btn(page, 'Agregar mi perro').click();
     // Espera a que termine la animación del diálogo: un toque antes de tiempo
     // cae fuera de él y lo cierra.
@@ -135,30 +181,30 @@ test.describe('reservar', () => {
     await btn(page, 'Pequeño').click();
     await btn(page, 'Guardar').click();
     await expect(btn(page, 'Toby')).toBeVisible();
+    await expect(btn(page, 'Enviar solicitud')).toBeEnabled(); // su único perro queda elegido
     await pickWhen(page);
-    await btn(page, 'Confirmar reserva').click();
+    await btn(page, 'Enviar solicitud').click();
     await expect(seen(page, '¡Solicitud enviada!')).toBeVisible();
     await expect(seen(page, 'Paseo · Toby')).toBeVisible();
   });
 
   test('con una reserva activa no se puede cambiar de rol', async ({ page }) => {
-    await startBooking(page, 'Laura Gómez');
-    await btn(page, 'Paseo · $25.000').click();
+    await openSheet(page, 'Laura Gómez');
     await btn(page, 'Rocky').click();
     await pickWhen(page);
-    await btn(page, 'Confirmar reserva').click();
+    await btn(page, 'Enviar solicitud').click();
     await btn(page, 'Volver al mapa').click();
     await tab(page, 'Perfil').click();
     await btn(page, 'Cambiar a cuidador').click();
     await expect(seen(page, 'No puedes cambiar de rol mientras tengas reservas activas.')).toBeVisible();
   });
 
-  test('un cuidador no puede abrir la pantalla de reserva', async ({ page }) => {
+  test('un cuidador ve perfiles pero no puede reservar', async ({ page }) => {
     await goToLogin(page);
     await login(page, 'cuidador@doggo.app');
     await expect(tab(page, 'Solicitudes')).toBeVisible();
-    await goToHash(page, '#/sitter/a1000000-0000-4000-8000-000000000001/book');
-    await expect(tab(page, 'Solicitudes')).toBeVisible();
-    await expect(btn(page, 'Confirmar reserva')).toHaveCount(0);
+    await goToHash(page, '#/sitter/a1000000-0000-4000-8000-000000000001');
+    await expect(seen(page, 'Laura Gómez')).toBeVisible();
+    await expect(btn(page, 'Reservar')).toHaveCount(0);
   });
 });

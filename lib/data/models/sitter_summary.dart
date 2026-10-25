@@ -39,7 +39,8 @@ class SitterSummary {
   /// el del paseo (o el más bajo que ofrezca si no hace paseos).
   int pinPrice(ServiceType? filter) {
     if (filter != null) return services[filter]!;
-    return services[ServiceType.walk] ?? services.values.reduce((a, b) => a < b ? a : b);
+    return services[ServiceType.walk] ??
+        services.values.reduce((a, b) => a < b ? a : b);
   }
 
   /// Etiqueta del servicio al que corresponde [pinPrice].
