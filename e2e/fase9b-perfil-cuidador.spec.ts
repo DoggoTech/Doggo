@@ -1,6 +1,6 @@
 import { test, expect, Page } from '@playwright/test';
 import {
-  btn, enterAsOwner, goToLogin, openProfileFromMap, scrollToEnd, seen, switchDemo, tab, typeInto, zoneMap, zonePin,
+  btn, scrollUntil, enterAsOwner, goToLogin, openProfileFromMap, scrollToEnd, seen, switchDemo, tab, typeInto, zoneMap, zonePin,
 } from './helpers';
 
 test.describe.configure({ timeout: 90_000 });
@@ -54,7 +54,7 @@ test.describe('zona de servicio', () => {
   test('un cuidador nuevo marca su zona tocando el mapa', async ({ page }) => {
     await registerSitter(page, 'Cuidadora Mapa', 'cuidadora.mapa@test.com');
     await tab(page, 'Servicios').click();
-    await expect(seen(page, /^Aún no defines tu zona/)).toBeVisible(); // aviso arriba
+    await expect(seen(page, /^Aún no sales en el mapa\. Te falta activar al menos un servicio con su precio y definir tu zona/)).toBeVisible(); // aviso arriba
     await scrollToEnd(page, btn(page, 'Guardar zona'));
 
     await btn(page, 'Guardar zona').click();
@@ -70,7 +70,10 @@ test.describe('zona de servicio', () => {
     await typeInto(page, 'Barrio', 'Teusaquillo');
     await btn(page, 'Guardar zona').click();
     await expect(seen(page, 'Zona guardada')).toBeVisible();
-    await expect(seen(page, /^Aún no defines tu zona/)).toHaveCount(0);
+    // Ya no falta la zona; los servicios siguen pendientes (aviso arriba).
+    const pending = seen(page, /^Aún no sales en el mapa\. Te falta activar al menos un servicio con su precio \(/);
+    await scrollUntil(page, pending, -350);
+    await expect(pending).toBeVisible();
   });
 
   test('el admin ve si un cuidador en revisión aún no tiene zona', async ({ page }) => {

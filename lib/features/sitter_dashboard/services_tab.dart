@@ -13,6 +13,7 @@ import '../../data/repositories/repository.dart';
 import '../bookings/bookings_providers.dart';
 import 'service_area_card.dart';
 import '../../shared/widgets/error_state.dart';
+import 'map_visibility_banner.dart';
 
 /// Servicios con precio y horario semanal del cuidador.
 class ServicesTab extends ConsumerWidget {
@@ -116,25 +117,7 @@ class _ServicesEditorState extends ConsumerState<_ServicesEditor> {
     return ListView(
       padding: const EdgeInsets.fromLTRB(20, 20, 20, 40),
       children: [
-        if (!widget.sitter.locationConfirmed)
-          Container(
-            margin: const EdgeInsets.only(bottom: 16),
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: theme.colorScheme.error.withValues(alpha: 0.08),
-              borderRadius: BorderRadius.circular(14),
-            ),
-            child: Semantics(
-              container: true,
-              child: Text(
-                'Aún no defines tu zona: no saldrás en el mapa hasta hacerlo. Está al final de esta página.',
-                style: TextStyle(
-                  color: theme.colorScheme.error,
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-            ),
-          ),
+        const MapVisibilityBanner(where: 'todo está en esta página'),
         Semantics(
           header: true,
           container: true,
