@@ -11,6 +11,7 @@ import '../../data/repositories/repository.dart';
 import '../bookings/bookings_providers.dart';
 import '../safety/report_sheet.dart';
 import 'countdown.dart';
+import 'map_visibility_banner.dart';
 import 'pending_review_view.dart';
 import '../../shared/widgets/error_state.dart';
 import '../../shared/widgets/appear_in.dart';
@@ -81,6 +82,8 @@ class RequestsTab extends ConsumerWidget {
                   ?.copyWith(color: AppColors.muted),
             ),
             const SizedBox(height: 16),
+            // Sin servicios o sin zona, ningún dueño puede encontrarte.
+            const MapVisibilityBanner(),
             if (pending.isEmpty)
               const _Empty()
             else
