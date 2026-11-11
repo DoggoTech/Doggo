@@ -107,6 +107,15 @@ Nace siempre `open`. **Lee:** quien reporta · el admin. Se resuelve solo con `a
 `id`, `admin_id`, `action`, `target_user_id` (**sin FK a propósito**: el registro sobrevive si la cuenta se elimina), `details` jsonb, `created_at`.
 **Lee:** el admin su propio historial · el superadmin todo. **Nadie escribe directo**: solo las RPC.
 
+### `sitter_cases`: caso de verificación (fase 13)
+`sitter_id` (PK), `assigned_admin`, `stage` (`new` → `meeting_scheduled` → `meeting_done`), `meeting_at`, `meeting_link` (https), `meeting_confirmed`, `created_at`, `updated_at`.
+Lo abre y lo cierra el trigger `sync_sitter_cases` sobre `profiles`: un cuidador que entra en `pending_review` abre caso; al aprobarlo, rechazarlo o volver a dueño se cierra. Se **reparte solo** al admin aprobado con menos casos abiertos; el superadmin solo recibe casos si no hay admins (y al llegar uno le pasa los que no ha empezado). Si un admin deja de serlo o se elimina, sus casos se reparten entre los demás.
+**Lee:** el propio cuidador · los admins. **Nadie escribe directo**: solo las RPC. En realtime.
+
+### `sitter_documents`: certificados (opcionales)
+`id`, `sitter_id`, `kind` (`certificate`, `first_aid`, `id_document`, `other`), `file_name`, `storage_path` (siempre en la carpeta del cuidador), `size_bytes` (≤ 10 MB), `created_at`. Máximo 10 por cuidador.
+**Lee:** el cuidador · los admins. **Escribe/borra:** el cuidador los suyos. El archivo vive en el bucket **privado** `sitter-docs` (PDF, JPG, PNG, WEBP); el admin lo abre con un enlace firmado de 10 minutos.
+
 ### Vista `sitter_rating_stats`
 Promedio y cantidad de reseñas por cuidador (`security_invoker`, respeta RLS).
 
@@ -121,6 +130,13 @@ Promedio y cantidad de reseñas por cuidador (`security_invoker`, respeta RLS).
 | `switch_role(new_role)` | cualquier usuario | dueño ↔ cuidador; **bloqueado con reservas activas** |
 | `superadmin_set_admin(target, make_admin)` | solo superadmin | asciende a admin (no con reservas activas) o le quita el rol (vuelve a dueño) |
 | `superadmin_delete_user(target)` | solo superadmin | elimina la cuenta (no con reservas activas); la auditoría guarda su nombre en `details.target_name` |
+| `admin_schedule_meeting(target, p_meeting_at, p_link)` | admin del caso, superadmin | agenda o cambia la reunión virtual (futura, ≤ 90 días, enlace https) |
+| `admin_mark_meeting_done(target)` | admin del caso, superadmin | marca la reunión como hecha |
+| `admin_take_case(target)` | admin, superadmin | toma un caso que quedó sin asignar |
+| `superadmin_reassign_case(target, new_admin)` | solo superadmin | pasa el caso a otro admin |
+| `sitter_confirm_meeting()` | el cuidador del caso | confirma que asistirá |
+
+Desde la fase 13, `admin_set_sitter_approval` además exige ser **el admin del caso o el superadmin**.
 
 Reglas de protección (en `assert_can_moderate`): nadie se modifica a sí mismo · nadie toca al superadmin · un admin no toca a otro admin. Cada acción escribe en `admin_actions`.
 
@@ -152,6 +168,7 @@ Es Postgres real en memoria: se reinicia limpia cada vez. En un proyecto de Supa
 | Archivo | Para qué |
 |---|---|
 | `supabase/schema.sql` | tablas, RLS, triggers, RPC, realtime, storage, permisos |
+| `supabase/migrations/` | cambios para un proyecto ya creado (correr una vez en el SQL Editor); cada uno va también al final de `schema.sql` |
 | `supabase/seed.sql` | 12 cuidadores en Bogotá (10 aprobados, 2 en revisión), un dueño con perros y reseñas |
 | `supabase/assign_roles.sql` | asigna rol a las 4 cuentas de prueba creadas desde el panel |
 | `supabase/tests/` | harness y pruebas |

@@ -14,7 +14,9 @@ import '../models/dog.dart';
 import '../models/profile.dart';
 import '../models/report.dart';
 import '../models/review.dart';
+import '../../core/format.dart';
 import '../models/service_type.dart';
+import '../models/sitter_case.dart';
 import '../models/sitter_summary.dart';
 import '../repositories/repository.dart';
 
@@ -1053,15 +1055,35 @@ class SupabaseRepository implements Repository {
       status: UserStatus.pendingReview,
     );
     if (users.isEmpty) return const <PendingSitter>[];
-    final rows = await _db.from('profiles').select(_sitterColumns).inFilter(
-      'id',
-      [for (final u in users) u.id],
-    );
+    final ids = [for (final u in users) u.id];
+    final (rows, caseRows, docRows) = await (
+      _db.from('profiles').select(_sitterColumns).inFilter('id', ids),
+      _db.from('sitter_cases').select().inFilter('sitter_id', ids),
+      _db
+          .from('sitter_documents')
+          .select()
+          .inFilter('sitter_id', ids)
+          .order('created_at'),
+    ).wait;
     final sitters = {for (final s in await _sitters(rows)) s.id: s};
+    final adminNames = await _names([
+      for (final c in caseRows)
+        if (c['assigned_admin'] != null) c['assigned_admin'] as String,
+    ]);
+    final cases = {
+      for (final c in caseRows)
+        c['sitter_id'] as String: _case(c, adminNames[c['assigned_admin']]),
+    };
+    final docs = [for (final d in docRows) _document(d)];
     return [
       for (final u in users)
         if (sitters[u.id] != null)
-          PendingSitter(user: u, sitter: sitters[u.id]!),
+          PendingSitter(
+            user: u,
+            sitter: sitters[u.id]!,
+            sitterCase: cases[u.id],
+            documents: docs.where((d) => d.sitterId == u.id).toList(),
+          ),
     ];
   });
 
@@ -1191,6 +1213,12 @@ class SupabaseRepository implements Repository {
         return d['suspended'] == true ? '$label · cuenta suspendida' : label;
       case 'suspend_user':
         return d['reason'] as String?;
+      case 'schedule_meeting':
+        final at = _date(d['meeting_at']);
+        return at == null ? null : 'para el ${formatDateTime(at)}';
+      case 'reassign_case':
+        final to = d['to_name'];
+        return to is String ? 'a $to' : null;
     }
     return null;
   }
@@ -1207,6 +1235,240 @@ class SupabaseRepository implements Repository {
   Future<void> deleteUser(String userId) => _guard(
     () => _db.rpc('superadmin_delete_user', params: {'target': userId}),
   );
+
+  // ---------------------------------------------------------------------------
+  // Casos de verificación (fase 13)
+  // ---------------------------------------------------------------------------
+
+  static SitterCase _case(Map<String, dynamic> r, String? adminName) =>
+      SitterCase(
+        sitterId: r['sitter_id'] as String,
+        stage: CaseStage.fromDb(r['stage'] as String),
+        assignedAdminId: r['assigned_admin'] as String?,
+        assignedAdminName: adminName,
+        meetingAt: _date(r['meeting_at']),
+        meetingLink: r['meeting_link'] as String?,
+        meetingConfirmed: r['meeting_confirmed'] as bool? ?? false,
+      );
+
+  static SitterDocument _document(Map<String, dynamic> r) => SitterDocument(
+    id: r['id'] as String,
+    sitterId: r['sitter_id'] as String,
+    kind: _enum(SitterDocKind.values, r['kind'] as String),
+    fileName: r['file_name'] as String,
+    storagePath: r['storage_path'] as String,
+    sizeBytes: (r['size_bytes'] as num).toInt(),
+    createdAt: _date(r['created_at'])!,
+  );
+
+  Future<Map<String, String>> _names(List<String> ids) async {
+    if (ids.isEmpty) return const {};
+    final rows = await _db
+        .from('profiles')
+        .select('id, full_name')
+        .inFilter('id', ids.toSet().toList());
+    return {
+      for (final p in rows) p['id'] as String: p['full_name'] as String? ?? '',
+    };
+  }
+
+  /// Emite `load()` al suscribirse y cada vez que cambia [table] (RLS filtra
+  /// las filas ajenas), como `watchMyBookings`.
+  Stream<T> _live<T>(String table, T empty, Future<T> Function() load) {
+    late final StreamController<T> out;
+    RealtimeChannel? channel;
+    var closed = false;
+
+    Future<void> refresh() async {
+      try {
+        final value = await load();
+        if (!closed) out.add(value);
+      } catch (e) {
+        if (!closed) out.addError(_translate(e));
+      }
+    }
+
+    out = StreamController<T>(
+      onListen: () {
+        final me = _current;
+        if (me == null) {
+          out.add(empty);
+          return;
+        }
+        refresh();
+        channel = _db
+            .channel('$table-${me.id}-${DateTime.now().microsecondsSinceEpoch}')
+            .onPostgresChanges(
+              event: PostgresChangeEvent.all,
+              schema: 'public',
+              table: table,
+              callback: (_) => refresh(),
+            )
+            .subscribe((status, _) {
+              if (status == RealtimeSubscribeStatus.subscribed) refresh();
+            });
+      },
+      onCancel: () async {
+        closed = true;
+        if (channel != null) await _db.removeChannel(channel!);
+      },
+    );
+    return out.stream;
+  }
+
+  @override
+  Stream<SitterCase?> watchMyCase() =>
+      _live<SitterCase?>('sitter_cases', null, () async {
+        final me = _current;
+        if (me == null) return null;
+        final row = await _db
+            .from('sitter_cases')
+            .select()
+            .eq('sitter_id', me.id)
+            .maybeSingle();
+        if (row == null) return null;
+        final admin = row['assigned_admin'] as String?;
+        final names = await _names([?admin]);
+        return _case(row, names[admin]);
+      });
+
+  @override
+  Stream<int> watchMyNewCases() => _live<int>('sitter_cases', 0, () async {
+    final me = _current;
+    if (me == null || !me.role.isAdmin) return 0;
+    final rows = await _db
+        .from('sitter_cases')
+        .select('sitter_id')
+        .eq('assigned_admin', me.id)
+        .eq('stage', CaseStage.fresh.db);
+    return rows.length;
+  });
+
+  @override
+  Future<void> confirmMeeting() =>
+      _guard(() => _db.rpc('sitter_confirm_meeting'));
+
+  @override
+  Future<void> scheduleMeeting(
+    String sitterId, {
+    required DateTime at,
+    required String link,
+  }) => _guard(() async {
+    final error = validateMeeting(at, link, DateTime.now());
+    if (error != null) throw ValidationFailure(error);
+    await _db.rpc(
+      'admin_schedule_meeting',
+      params: {
+        'target': sitterId,
+        'p_meeting_at': at.toUtc().toIso8601String(),
+        'p_link': link.trim(),
+      },
+    );
+  });
+
+  @override
+  Future<void> markMeetingDone(String sitterId) => _guard(
+    () => _db.rpc('admin_mark_meeting_done', params: {'target': sitterId}),
+  );
+
+  @override
+  Future<void> takeCase(String sitterId) =>
+      _guard(() => _db.rpc('admin_take_case', params: {'target': sitterId}));
+
+  @override
+  Future<void> reassignCase(String sitterId, String adminId) => _guard(
+    () => _db.rpc(
+      'superadmin_reassign_case',
+      params: {'target': sitterId, 'new_admin': adminId},
+    ),
+  );
+
+  @override
+  Future<List<AdminUserRow>> fetchCaseHandlers() => _guard(() async {
+    final (admins, supers) = await (
+      searchUsers(role: UserRole.admin, status: UserStatus.approved),
+      searchUsers(role: UserRole.superadmin, status: UserStatus.approved),
+    ).wait;
+    return [...admins, ...supers]..sort((a, b) => a.name.compareTo(b.name));
+  });
+
+  @override
+  Future<List<SitterDocument>> fetchMyDocuments() => _guard(() async {
+    final me = _requireSitter();
+    final rows = await _db
+        .from('sitter_documents')
+        .select()
+        .eq('sitter_id', me.id)
+        .order('created_at');
+    return [for (final r in rows) _document(r)];
+  });
+
+  @override
+  Future<SitterDocument> uploadMyDocument({
+    required SitterDocKind kind,
+    required String fileName,
+    required Uint8List bytes,
+  }) => _guard(() async {
+    final me = _requireSitter();
+    final existing = await _db
+        .from('sitter_documents')
+        .select('id')
+        .eq('sitter_id', me.id);
+    final error = validateSitterDoc(
+      fileName: fileName,
+      sizeBytes: bytes.length,
+      existing: existing.length,
+    );
+    if (error != null) throw ValidationFailure(error);
+    // Nombre seguro y único dentro de la carpeta del cuidador.
+    final safe = fileName.replaceAll(RegExp(r'[^A-Za-z0-9._-]'), '_');
+    final path = '${me.id}/${DateTime.now().millisecondsSinceEpoch}-$safe';
+    final bucket = _db.storage.from('sitter-docs');
+    await bucket.uploadBinary(
+      path,
+      bytes,
+      fileOptions: FileOptions(contentType: sitterDocMimeType(fileName)),
+    );
+    try {
+      final row = await _db
+          .from('sitter_documents')
+          .insert({
+            'kind': _snake(kind.name),
+            'file_name': fileName,
+            'storage_path': path,
+            'size_bytes': bytes.length,
+          })
+          .select()
+          .single();
+      return _document(row);
+    } catch (_) {
+      // Sin fila no hay documento: no dejar el archivo huérfano.
+      await bucket.remove([path]);
+      rethrow;
+    }
+  });
+
+  @override
+  Future<void> deleteMyDocument(String documentId) => _guard(() async {
+    final me = _requireSitter();
+    final rows = await _db
+        .from('sitter_documents')
+        .delete()
+        .eq('id', documentId)
+        .eq('sitter_id', me.id)
+        .select('storage_path');
+    final paths = [for (final r in rows) r['storage_path'] as String];
+    if (paths.isNotEmpty) await _db.storage.from('sitter-docs').remove(paths);
+  });
+
+  @override
+  Future<Uri> documentUrl(SitterDocument document) => _guard(() async {
+    // Enlace temporal (10 min): el bucket es privado.
+    final url = await _db.storage
+        .from('sitter-docs')
+        .createSignedUrl(document.storagePath, 600);
+    return Uri.parse(url);
+  });
 
   // ---------------------------------------------------------------------------
   // Utilidades
@@ -1261,6 +1523,16 @@ class SupabaseRepository implements Repository {
     'report_not_open': 'Ese reporte ya fue atendido.',
     'invalid_resolution': 'Elige revisado o descartado.',
     'role_not_switchable': 'Tu rol no se puede cambiar desde ajustes.',
+    'not_your_case': 'Este caso lo lleva otro administrador.',
+    'case_not_found': 'Ese cuidador ya no está en revisión.',
+    'case_taken': 'Ese caso ya lo tomó otro administrador.',
+    'meeting_in_past': 'Elige una fecha y hora en el futuro.',
+    'meeting_too_far': 'Agenda la reunión dentro de los próximos 90 días.',
+    'invalid_meeting_link':
+        'Pega el enlace de la videollamada (empieza por https://).',
+    'no_meeting': 'No hay una reunión agendada.',
+    'too_many_documents': 'Puedes subir hasta 10 documentos.',
+    'sitter_documents_own_folder': 'No tienes permiso para hacer esto.',
     'forbidden': 'No tienes permiso para hacer esto.',
     'protected_column': 'No tienes permiso para hacer esto.',
     'row-level security': 'No tienes permiso para hacer esto.',

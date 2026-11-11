@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../data/models/profile.dart';
 import '../../core/theme/app_colors.dart';
 import '../../shared/widgets/doggo_logo.dart';
+import '../admin/admin_providers.dart';
 import '../admin/approvals_tab.dart';
 import '../admin/reports_tab.dart';
 import '../admin/team_tab.dart';
@@ -155,7 +157,7 @@ class _RoleShellState extends State<RoleShell> {
                     destinations: [
                       for (final t in tabs)
                         NavigationRailDestination(
-                          icon: Icon(t.icon),
+                          icon: _TabIcon(t),
                           label: Text(t.label),
                         ),
                     ],
@@ -191,12 +193,35 @@ class _RoleShellState extends State<RoleShell> {
               onDestinationSelected: (i) => setState(() => _index = i),
               destinations: [
                 for (final t in tabs)
-                  NavigationDestination(icon: Icon(t.icon), label: t.label),
+                  NavigationDestination(icon: _TabIcon(t), label: t.label),
               ],
             ),
           ),
         );
       },
+    );
+  }
+}
+
+/// Ícono de la pestaña; en Aprobaciones lleva la insignia con los casos
+/// propios que esperan reunión.
+class _TabIcon extends ConsumerWidget {
+  const _TabIcon(this.tab);
+
+  final _Tab tab;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    if (tab.builder != _approvalsTab) return Icon(tab.icon);
+    final n = ref.watch(myNewCasesProvider).value ?? 0;
+    // Fuera del árbol de accesibilidad: el nombre de la pestaña sigue siendo
+    // "Aprobaciones" y el conteo se lee en "Mis casos (n)" dentro de ella.
+    return ExcludeSemantics(
+      child: Badge(
+        isLabelVisible: n > 0,
+        label: Text('$n'),
+        child: Icon(tab.icon),
+      ),
     );
   }
 }

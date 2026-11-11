@@ -296,3 +296,15 @@ export async function scrollToEnd(page: Page, lastItem: Locator) {
 /** El pin que marca la zona dentro del mini mapa (forma parte del botón del mapa). */
 export const zonePin = (page: Page) => page.getByRole('button', { name: /Tu zona marcada/ });
 export const zoneMap = (page: Page) => page.getByRole('button', { name: /^Mapa para marcar tu zona/ });
+
+/**
+ * Aprueba a un cuidador en revisión desde Aprobaciones. Sin reunión hecha la
+ * app pide confirmar (la reunión se recomienda, no es obligatoria).
+ */
+export async function approveSitter(page: Page, name: string) {
+  const approve = btn(page, `Aprobar a ${name}`);
+  await scrollUntil(page, approve);
+  await approve.click();
+  await btn(page, 'Sí, aprobar').click();
+  await expect(seen(page, `${name} fue aprobado`)).toBeVisible();
+}

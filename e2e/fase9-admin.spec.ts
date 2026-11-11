@@ -1,5 +1,5 @@
 import { test, expect, Page } from '@playwright/test';
-import {
+import { approveSitter,
   btn, enterAsOwner, goToLogin, openProfileFromMap, pin, pins, scrollToEnd, seen, switchDemo, tab, typeInto, zonePin,
 } from './helpers';
 
@@ -25,8 +25,7 @@ test.describe('aprobaciones', () => {
     await expect(seen(page, /^Natalia Peña/)).toBeVisible();
     await expect(seen(page, /^Ricardo Salazar/)).toBeVisible();
 
-    await btn(page, 'Aprobar a Natalia Peña').click();
-    await expect(seen(page, 'Natalia Peña fue aprobado')).toBeVisible();
+    await approveSitter(page, 'Natalia Peña');
     await expect(btn(page, 'Aprobar a Natalia Peña')).toHaveCount(0);
 
     await switchDemo(page, 'Dueño');
@@ -47,8 +46,7 @@ test.describe('aprobaciones', () => {
     await asAdmin(page);
     // No hay interruptor aparte: aprobar es verificar.
     await expect(toggle(page, 'Verificado: Natalia Peña')).toHaveCount(0);
-    await btn(page, 'Aprobar a Natalia Peña').click();
-    await expect(seen(page, 'Natalia Peña fue aprobado')).toBeVisible();
+    await approveSitter(page, 'Natalia Peña');
     await switchDemo(page, 'Dueño');
     await openProfileFromMap(page, 'Natalia Peña');
     await expect(seen(page, /Natalia Peña\s*Verificado/)).toBeVisible();
@@ -88,8 +86,7 @@ test.describe('criterio de aceptación: aprobación', () => {
     await expect(pin(page, 'Sitter Nuevo')).toHaveCount(0); // aún en revisión
 
     await switchDemo(page, 'Administrador');
-    await btn(page, 'Aprobar a Sitter Nuevo').click();
-    await expect(seen(page, 'Sitter Nuevo fue aprobado')).toBeVisible();
+    await approveSitter(page, 'Sitter Nuevo');
 
     await switchDemo(page, 'Dueño');
     await expect(pin(page, 'Sitter Nuevo')).toBeAttached(); // ya aprobado

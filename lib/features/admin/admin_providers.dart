@@ -9,6 +9,17 @@ final pendingSittersProvider = FutureProvider.autoDispose<List<PendingSitter>>(
   (ref) => ref.watch(repositoryProvider).fetchPendingSitters(),
 );
 
+/// Casos propios que esperan reunión (insignia de la pestaña Aprobaciones).
+final myNewCasesProvider = StreamProvider.autoDispose<int>((ref) {
+  ref.watch(authStateProvider);
+  return ref.watch(repositoryProvider).watchMyNewCases();
+});
+
+/// Admins que pueden llevar casos (para que el superadmin reasigne).
+final caseHandlersProvider = FutureProvider.autoDispose<List<AdminUserRow>>(
+  (ref) => ref.watch(repositoryProvider).fetchCaseHandlers(),
+);
+
 final reportsProvider = FutureProvider.autoDispose<List<Report>>(
   (ref) => ref.watch(repositoryProvider).fetchReports(),
 );

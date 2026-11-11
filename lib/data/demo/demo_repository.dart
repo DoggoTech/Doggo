@@ -4,6 +4,7 @@ import 'dart:typed_data';
 
 import 'package:latlong2/latlong.dart';
 
+import '../../core/format.dart';
 import '../models/admin.dart';
 import '../models/availability.dart';
 import '../contact_filter.dart';
@@ -15,6 +16,7 @@ import '../models/profile.dart';
 import '../models/report.dart';
 import '../models/review.dart';
 import '../models/service_type.dart';
+import '../models/sitter_case.dart';
 import '../models/sitter_summary.dart';
 import '../booking_rules.dart';
 import '../pricing.dart';
@@ -50,6 +52,8 @@ class DemoRepository implements Repository {
       );
       if (pending) _pendingSitters[s.id] = s;
     }
+    // Los cuidadores en revisión de ejemplo ya tienen su caso repartido.
+    _syncCases();
     // Las solicitudes sin respuesta vencen solas al pasar su plazo.
     Timer.periodic(const Duration(seconds: 15), (_) => _expireOverdue());
   }
@@ -165,6 +169,7 @@ class DemoRepository implements Repository {
   void _setCurrent(Profile? p) {
     _current = p;
     if (p != null) _users[p.email] = _users[p.email]!.withProfile(p);
+    _syncCases();
     _controller.add(p);
   }
 
@@ -833,6 +838,7 @@ class DemoRepository implements Repository {
     final u = _users[updated.email]!;
     _users[updated.email] = u.withProfile(updated);
     if (_current?.id == updated.id) _current = updated;
+    _syncCases();
   }
 
   void _log(String action, Profile target, {String? details}) {
@@ -878,7 +884,14 @@ class DemoRepository implements Repository {
       for (final u in _users.values)
         if (u.profile.role == UserRole.sitter &&
             u.profile.status == UserStatus.pendingReview)
-          PendingSitter(user: _row(u.profile), sitter: _sitterOf(u.profile)),
+          PendingSitter(
+            user: _row(u.profile),
+            sitter: _sitterOf(u.profile),
+            sitterCase: _caseView(u.profile.id),
+            documents: _documents
+                .where((d) => d.sitterId == u.profile.id)
+                .toList(),
+          ),
     ];
   }
 
@@ -892,6 +905,7 @@ class DemoRepository implements Repository {
     if (target.status != UserStatus.pendingReview) {
       throw const ValidationFailure('Ese cuidador ya no está en revisión.');
     }
+    if (_cases.containsKey(target.id)) _assertCaseHandler(target.id);
     // Aprobar es verificar: el admin ya revisó documento y selfie.
     _updateProfile(
       target.copyWith(
@@ -1051,6 +1065,8 @@ class DemoRepository implements Repository {
     _dogs.removeWhere((d) => d.ownerId == userId);
     _bookings.removeWhere((b) => b.ownerId == userId || b.sitterId == userId);
     _reviews.removeWhere((r) => r.sitterId == userId);
+    _documents.removeWhere((d) => d.sitterId == userId);
+    _syncCases();
   }
 
   @override
@@ -1192,6 +1208,284 @@ class DemoRepository implements Repository {
     _updateMySitter((s) => s.copyWith(availability: availability));
   }
 
+  // ---------------------------------------------------------------------------
+  // Casos de verificación (fase 13): mismas reglas que la sección 11 del esquema
+  // ---------------------------------------------------------------------------
+
+  /// Un caso por cuidador en revisión, en orden de llegada.
+  final _cases = <String, _DemoCase>{};
+  final _documents = <SitterDocument>[];
+  final _documentBytes = <String, Uint8List>{};
+  final _caseChanges = StreamController<void>.broadcast();
+  var _knownAdmins = <String>{};
+
+  bool _isHandler(Profile p) =>
+      p.role.isAdmin && p.status == UserStatus.approved;
+
+  /// Igual que el trigger `sync_sitter_cases`: abre, cierra y reparte casos.
+  void _syncCases() {
+    final profiles = [for (final u in _users.values) u.profile];
+    final pending = {
+      for (final p in profiles)
+        if (p.role == UserRole.sitter && p.status == UserStatus.pendingReview)
+          p.id,
+    };
+    final handlers = profiles.where(_isHandler).toList();
+    final handlerIds = {for (final h in handlers) h.id};
+
+    _cases.removeWhere((id, _) => !pending.contains(id));
+    for (final id in pending) {
+      _cases.putIfAbsent(id, () => _DemoCase(_now()));
+    }
+    for (final c in _cases.values) {
+      if (c.adminId != null && !handlerIds.contains(c.adminId)) {
+        c.adminId = null;
+      }
+    }
+    // El superadmin solo guarda casos mientras no hay admins.
+    final newAdmins = handlers.where(
+      (h) => h.role == UserRole.admin && !_knownAdmins.contains(h.id),
+    );
+    if (newAdmins.isNotEmpty) {
+      final superIds = {
+        for (final h in handlers)
+          if (h.role == UserRole.superadmin) h.id,
+      };
+      for (final c in _cases.values) {
+        if (c.stage == CaseStage.fresh && superIds.contains(c.adminId)) {
+          c.adminId = null;
+        }
+      }
+    }
+    _knownAdmins = handlerIds;
+
+    for (final c in _cases.values.where((c) => c.adminId == null)) {
+      if (handlers.isEmpty) break;
+      int load(Profile h) =>
+          _cases.values.where((x) => x.adminId == h.id).length;
+      final pick = [...handlers]
+        ..sort((a, b) {
+          final bySuper =
+              (a.role == UserRole.superadmin ? 1 : 0) -
+              (b.role == UserRole.superadmin ? 1 : 0);
+          return bySuper != 0 ? bySuper : load(a) - load(b);
+        });
+      c.adminId = pick.first.id;
+    }
+    _caseChanges.add(null);
+  }
+
+  SitterCase? _caseView(String sitterId) {
+    final c = _cases[sitterId];
+    if (c == null) return null;
+    return SitterCase(
+      sitterId: sitterId,
+      stage: c.stage,
+      assignedAdminId: c.adminId,
+      assignedAdminName: c.adminId == null
+          ? null
+          : _userById(c.adminId!)?.profile.fullName,
+      meetingAt: c.meetingAt,
+      meetingLink: c.meetingLink,
+      meetingConfirmed: c.confirmed,
+    );
+  }
+
+  _DemoCase _assertCaseHandler(String sitterId) {
+    final me = _requireAdmin();
+    final c = _cases[sitterId];
+    if (c == null) {
+      throw const ValidationFailure('Ese cuidador ya no está en revisión.');
+    }
+    if (c.adminId != me.id && me.role != UserRole.superadmin) {
+      throw const ValidationFailure('Este caso lo lleva otro administrador.');
+    }
+    return c;
+  }
+
+  @override
+  Stream<SitterCase?> watchMyCase() async* {
+    yield _current == null ? null : _caseView(_current!.id);
+    await for (final _ in _caseChanges.stream) {
+      yield _current == null ? null : _caseView(_current!.id);
+    }
+  }
+
+  int _myNewCases() {
+    final me = _current;
+    if (me == null || !_isHandler(me)) return 0;
+    return _cases.values
+        .where((c) => c.adminId == me.id && c.stage == CaseStage.fresh)
+        .length;
+  }
+
+  @override
+  Stream<int> watchMyNewCases() async* {
+    yield _myNewCases();
+    await for (final _ in _caseChanges.stream) {
+      yield _myNewCases();
+    }
+  }
+
+  @override
+  Future<void> confirmMeeting() async {
+    await _latency();
+    final me = _current;
+    final c = me == null ? null : _cases[me.id];
+    if (c == null || c.stage != CaseStage.meetingScheduled) {
+      throw const ValidationFailure('No tienes una reunión agendada.');
+    }
+    c.confirmed = true;
+    _caseChanges.add(null);
+  }
+
+  @override
+  Future<void> scheduleMeeting(
+    String sitterId, {
+    required DateTime at,
+    required String link,
+  }) async {
+    await _latency();
+    final c = _assertCaseHandler(sitterId);
+    final error = validateMeeting(at, link, _now());
+    if (error != null) throw ValidationFailure(error);
+    c
+      ..stage = CaseStage.meetingScheduled
+      ..meetingAt = at
+      ..meetingLink = link.trim()
+      ..confirmed = false;
+    _log(
+      'schedule_meeting',
+      _userById(sitterId)!.profile,
+      details: 'para el ${formatDateTime(at)}',
+    );
+    _caseChanges.add(null);
+  }
+
+  @override
+  Future<void> markMeetingDone(String sitterId) async {
+    await _latency();
+    final c = _assertCaseHandler(sitterId);
+    if (c.stage != CaseStage.meetingScheduled) {
+      throw const ValidationFailure('Primero agenda la reunión.');
+    }
+    c.stage = CaseStage.meetingDone;
+    _log('meeting_done', _userById(sitterId)!.profile);
+    _caseChanges.add(null);
+  }
+
+  @override
+  Future<void> takeCase(String sitterId) async {
+    await _latency();
+    final me = _requireAdmin();
+    final c = _cases[sitterId];
+    if (c == null || c.adminId != null) {
+      throw const ValidationFailure('Ese caso ya lo tomó otro administrador.');
+    }
+    c.adminId = me.id;
+    _log('take_case', _userById(sitterId)!.profile);
+    _caseChanges.add(null);
+  }
+
+  @override
+  Future<void> reassignCase(String sitterId, String adminId) async {
+    await _latency();
+    final me = _requireAdmin();
+    if (me.role != UserRole.superadmin) {
+      throw const ValidationFailure(
+        'Solo el superadministrador puede hacer esto.',
+      );
+    }
+    final admin = _userById(adminId)?.profile;
+    if (admin == null || !_isHandler(admin)) {
+      throw const ValidationFailure('Ese usuario no es administrador.');
+    }
+    final c = _cases[sitterId];
+    if (c == null) {
+      throw const ValidationFailure('Ese cuidador ya no está en revisión.');
+    }
+    c.adminId = adminId;
+    _log(
+      'reassign_case',
+      _userById(sitterId)!.profile,
+      details: 'a ${admin.fullName}',
+    );
+    _caseChanges.add(null);
+  }
+
+  @override
+  Future<List<AdminUserRow>> fetchCaseHandlers() async {
+    await _latency();
+    _requireAdmin();
+    return [
+      for (final u in _users.values)
+        if (_isHandler(u.profile)) _row(u.profile),
+    ]..sort((a, b) => a.name.compareTo(b.name));
+  }
+
+  @override
+  Future<List<SitterDocument>> fetchMyDocuments() async {
+    await _latency();
+    final me = _requireSitter();
+    return _documents.where((d) => d.sitterId == me.id).toList();
+  }
+
+  @override
+  Future<SitterDocument> uploadMyDocument({
+    required SitterDocKind kind,
+    required String fileName,
+    required Uint8List bytes,
+  }) async {
+    await _latency();
+    final me = _requireSitter();
+    final error = validateSitterDoc(
+      fileName: fileName,
+      sizeBytes: bytes.length,
+      existing: _documents.where((d) => d.sitterId == me.id).length,
+    );
+    if (error != null) throw ValidationFailure(error);
+    final id = 'demo-doc-${_nextId++}';
+    final doc = SitterDocument(
+      id: id,
+      sitterId: me.id,
+      kind: kind,
+      fileName: fileName,
+      storagePath: '${me.id}/$id',
+      sizeBytes: bytes.length,
+      createdAt: _now(),
+    );
+    _documents.add(doc);
+    _documentBytes[id] = bytes;
+    return doc;
+  }
+
+  @override
+  Future<void> deleteMyDocument(String documentId) async {
+    await _latency();
+    final me = _requireSitter();
+    _documents.removeWhere((d) => d.id == documentId && d.sitterId == me.id);
+    _documentBytes.remove(documentId);
+  }
+
+  @override
+  Future<Uri> documentUrl(SitterDocument document) async {
+    final me = _current;
+    final allowed =
+        me != null && (me.id == document.sitterId || _isHandler(me));
+    final bytes = _documentBytes[document.id];
+    if (!allowed || bytes == null) {
+      throw const ValidationFailure(
+        'No tienes permiso para ver este documento.',
+      );
+    }
+    // En la demo el archivo vive en memoria; con Supabase es un enlace temporal.
+    return Uri.dataFromBytes(
+      bytes,
+      mimeType:
+          sitterDocMimeType(document.fileName) ?? 'application/octet-stream',
+    );
+  }
+
   bool _hasActiveBookings(Profile profile) => _bookings.any(
     (b) =>
         (b.ownerId == profile.id || b.sitterId == profile.id) &&
@@ -1200,6 +1494,16 @@ class DemoRepository implements Repository {
 
   Future<void> _latency() =>
       Future<void>.delayed(const Duration(milliseconds: 250));
+}
+
+class _DemoCase {
+  _DemoCase(this.createdAt);
+  final DateTime createdAt;
+  String? adminId;
+  CaseStage stage = CaseStage.fresh;
+  DateTime? meetingAt;
+  String? meetingLink;
+  bool confirmed = false;
 }
 
 class _DemoUser {

@@ -79,6 +79,20 @@ original del producto.
 | **`ErrorState`** común con "Reintentar" | Antes algunas pantallas mostraban el texto técnico del error. |
 | **`AppearIn`**: fundido corto al cambiar de pestaña y al aparecer una tarjeta | Microanimaciones del contexto; respeta "reducir movimiento" del sistema. |
 
+## 5c. Casos de verificación de cuidadores (fase 13)
+
+| Decisión | Motivo |
+|---|---|
+| Cada cuidador nuevo es un **caso repartido** automáticamente al admin con menos casos abiertos (decidido por el usuario: repartir, no avisar a todos) | Hay un responsable claro y la carga queda pareja. El superadmin puede reasignar. |
+| Solo **el admin del caso o el superadmin** agendan, marcan la reunión y deciden | Evita que dos admins atiendan al mismo cuidador. Un caso sin admin lo puede tomar cualquiera. |
+| **Reunión virtual** con fecha y enlace https (Meet, Zoom…), sin integración de calendario | Lo más simple que sirve; el cuidador la ve en vivo y confirma. |
+| La reunión es **recomendada, no obligatoria**: aprobar sin ella pide confirmación | El usuario no quiso un requisito rígido. |
+| **Certificados opcionales** (decisión del usuario), con aviso de que suben mucho la probabilidad de aprobación; bucket **privado**, enlaces firmados de 10 min, casilla de autorización (Ley 1581) | Son datos personales: solo el cuidador y los admins los ven. |
+| Avisos **solo dentro de la app** (insignia en Aprobaciones y lista en vivo); sin correo por ahora | Correo exigiría una Edge Function y un proveedor: rompe "sin servidor". |
+| Los casos se mantienen con **un trigger sobre `profiles`** | Funciona venga el cambio de donde venga (registro, cambio de rol, `assign_roles.sql`, eliminar cuenta). |
+| Proyecto ya creado: **`supabase/migrations/`**, copiado igual al final de `schema.sql` (una prueba lo verifica) | `schema.sql` sigue sirviendo para un proyecto nuevo y la migración para el existente. |
+
 ## 6. Pendientes
 
-1. **Después del MVP**: beneficios para cuidadores con buena calificación (niveles, destacar en el mapa), cuando haya reseñas reales.
+1. **Avisos por correo** de casos y reuniones (Edge Function + proveedor de correo), cuando se decida salir de "sin servidor".
+2. **Después del MVP**: beneficios para cuidadores con buena calificación (niveles, destacar en el mapa), cuando haya reseñas reales.

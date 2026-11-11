@@ -18,6 +18,10 @@ String auditVerb(String action) => switch (action) {
   'promote_admin' => 'nombró administrador a',
   'revoke_admin' => 'quitó el rol de administrador a',
   'delete_user' => 'eliminó la cuenta de',
+  'schedule_meeting' => 'agendó la reunión con',
+  'meeting_done' => 'tuvo la reunión con',
+  'take_case' => 'tomó el caso de',
+  'reassign_case' => 'reasignó el caso de',
   _ => action,
 };
 
