@@ -35,6 +35,17 @@ jobs:
           flutter build web --release --base-href /Doggo/
           --dart-define=SUPABASE_URL=${{ secrets.SUPABASE_URL }}
           --dart-define=SUPABASE_ANON_KEY=${{ secrets.SUPABASE_ANON_KEY }}
+      - name: Versionar los archivos (evita ver la versión vieja)
+        # GitHub Pages deja los archivos 10 min en la caché del navegador y
+        # main.dart.js siempre se llama igual: tras publicar, recargar seguía
+        # mostrando la versión anterior. Con la versión del commit en la URL,
+        # recargar trae siempre lo último.
+        run: |
+          v="${GITHUB_SHA::8}"
+          sed -i "s/\"mainJsPath\":\"main.dart.js\"/\"mainJsPath\":\"main.dart.js?v=$v\"/" build/web/flutter_bootstrap.js
+          sed -i "s/src=\"flutter_bootstrap.js\"/src=\"flutter_bootstrap.js?v=$v\"/" build/web/index.html
+          grep -q "main.dart.js?v=$v" build/web/flutter_bootstrap.js
+          grep -q "flutter_bootstrap.js?v=$v" build/web/index.html
       - uses: actions/upload-pages-artifact@v5
         with:
           path: build/web
