@@ -11,6 +11,7 @@ import '../models/profile.dart';
 import '../models/report.dart';
 import '../models/review.dart';
 import '../models/service_type.dart';
+import '../models/sitter_case.dart';
 import '../models/sitter_summary.dart';
 
 /// Error de autenticación con un mensaje listo para mostrar al usuario.
@@ -202,4 +203,51 @@ abstract class Repository {
 
   /// Foto de perfil: JPG, PNG o WEBP de hasta 2 MB.
   Future<void> saveMyPhoto(Uint8List bytes, String mimeType);
+
+  // ---- Caso de verificación del cuidador (fase 13) ----
+
+  /// Caso del cuidador con sesión, en vivo (aparece la reunión al agendarla).
+  /// `null` si no está en revisión.
+  Stream<SitterCase?> watchMyCase();
+
+  /// El cuidador confirma que asistirá a la reunión agendada.
+  Future<void> confirmMeeting();
+
+  /// Certificados del cuidador con sesión, del más antiguo al más reciente.
+  Future<List<SitterDocument>> fetchMyDocuments();
+
+  /// Sube un certificado (opcional): PDF, JPG, PNG o WEBP de hasta 10 MB,
+  /// máximo 10. Solo lo ven el cuidador y los admins.
+  Future<SitterDocument> uploadMyDocument({
+    required SitterDocKind kind,
+    required String fileName,
+    required Uint8List bytes,
+  });
+
+  Future<void> deleteMyDocument(String documentId);
+
+  /// Admin: cuántos casos suyos esperan que agende la reunión, en vivo.
+  Stream<int> watchMyNewCases();
+
+  /// Admin del caso (o superadmin): agenda o cambia la reunión virtual.
+  /// Fecha futura (≤ 90 días) y enlace https.
+  Future<void> scheduleMeeting(
+    String sitterId, {
+    required DateTime at,
+    required String link,
+  });
+
+  Future<void> markMeetingDone(String sitterId);
+
+  /// Cualquier admin toma un caso que quedó sin asignar.
+  Future<void> takeCase(String sitterId);
+
+  /// Solo el superadmin: pasa el caso a otro admin (o a sí mismo).
+  Future<void> reassignCase(String sitterId, String adminId);
+
+  /// Admins aprobados (y el superadmin) que pueden llevar casos.
+  Future<List<AdminUserRow>> fetchCaseHandlers();
+
+  /// Enlace para ver un certificado (temporal en el modo real).
+  Future<Uri> documentUrl(SitterDocument document);
 }

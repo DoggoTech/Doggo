@@ -1,4 +1,5 @@
 import 'profile.dart';
+import 'sitter_case.dart';
 import 'sitter_summary.dart';
 
 /// Una fila del buscador de usuarios del panel de administración.
@@ -20,12 +21,20 @@ class AdminUserRow {
   final bool verified;
 }
 
-/// Cuidador en revisión con su perfil completo, para aprobarlo o rechazarlo.
+/// Cuidador en revisión con su perfil completo, su caso (admin asignado y
+/// reunión) y sus certificados, para aprobarlo o rechazarlo.
 class PendingSitter {
-  const PendingSitter({required this.user, required this.sitter});
+  const PendingSitter({
+    required this.user,
+    required this.sitter,
+    this.sitterCase,
+    this.documents = const [],
+  });
 
   final AdminUserRow user;
   final SitterSummary sitter;
+  final SitterCase? sitterCase;
+  final List<SitterDocument> documents;
 }
 
 /// Registro de auditoría de una acción de moderación.
@@ -44,7 +53,8 @@ class AdminAction {
   final String adminName;
 
   /// approve_sitter, reject_sitter, suspend_user, reactivate_user,
-  /// resolve_report, promote_admin, revoke_admin, delete_user (mismos nombres
+  /// resolve_report, promote_admin, revoke_admin, delete_user,
+  /// schedule_meeting, meeting_done, take_case, reassign_case (mismos nombres
   /// que la base).
   final String action;
   final String targetUserId;

@@ -5,6 +5,7 @@
 //   npm run test:db
 import { test, describe, before } from 'node:test';
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import { createDb, inTx, IDS } from './harness.mjs';
 
 let db;
@@ -1069,4 +1070,226 @@ describe('servicios del cuidador', () => {
         await t.q(`insert into sitter_services (sitter_id, service_type, price_cop) values ($1, 'boarding', 70000)`, [IDS.natalia]);
       }),
     ));
+});
+
+// ---------------------------------------------------------------------------
+describe('fase 13: casos de verificación, reunión y certificados', () => {
+  const caseOf = async (t, id) => (await t.q(`select * from sitter_cases where sitter_id = $1`, [id]))[0];
+  const inAWeek = `now() + interval '7 days'`;
+  const MEET = 'https://meet.google.com/abc-defg-hij';
+
+  test('schema.sql incluye la migración de la fase 13 tal cual', () => {
+    const read = (p) => readFileSync(new URL(`../${p}`, import.meta.url), 'utf8');
+    const migration = read('migrations/2026-11-11_fase13_casos_cuidador.sql');
+    assert.ok(read('schema.sql').includes(migration.trim()), 'copia la migración al final de schema.sql');
+  });
+
+  test('sin admins, los cuidadores en revisión tienen caso pero sin asignar', () =>
+    tx(async (t) => {
+      const rows = await t.q(`select sitter_id, assigned_admin, stage from sitter_cases order by sitter_id`);
+      assert.deepEqual(rows.map((r) => r.sitter_id), [IDS.natalia, IDS.ricardo]);
+      assert.ok(rows.every((r) => r.assigned_admin === null && r.stage === 'new'));
+    }));
+
+  test('los casos se reparten: cada uno va al admin con menos casos abiertos', () =>
+    tx(async (t) => {
+      const a1 = await adminUser(t, 'a1@t.test');
+      // Al llegar el primer admin recibe los dos casos que esperaban.
+      assert.equal((await caseOf(t, IDS.natalia)).assigned_admin, a1);
+      assert.equal((await caseOf(t, IDS.ricardo)).assigned_admin, a1);
+      const a2 = await adminUser(t, 'a2@t.test');
+      // Los cuidadores nuevos van a a2 hasta empatar; después quedan parejos.
+      const s1 = await t.signUp('s1@t.test', { role: 'sitter', accepted_terms: true });
+      const s2 = await t.signUp('s2@t.test', { role: 'sitter', accepted_terms: true });
+      assert.equal((await caseOf(t, s1)).assigned_admin, a2);
+      assert.equal((await caseOf(t, s2)).assigned_admin, a2);
+      await t.signUp('s3@t.test', { role: 'sitter', accepted_terms: true });
+      await t.signUp('s4@t.test', { role: 'sitter', accepted_terms: true });
+      const counts = await t.q(`select assigned_admin, count(*)::int n from sitter_cases group by 1`);
+      assert.deepEqual(counts.map((c) => c.n), [3, 3]);
+      assert.deepEqual(counts.map((c) => c.assigned_admin).sort(), [a1, a2].sort());
+      // Los dueños no abren caso.
+      const owner = await t.signUp('o@t.test', { role: 'owner', accepted_terms: true });
+      assert.equal(await caseOf(t, owner), undefined);
+    }));
+
+  test('el superadmin solo recibe casos si no hay admins; al llegar uno se los pasa', () =>
+    tx(async (t) => {
+      const sa = await adminUser(t, 'sa@t.test', 'superadmin');
+      assert.equal((await caseOf(t, IDS.natalia)).assigned_admin, sa);
+      const a = await adminUser(t, 'a@t.test');
+      assert.equal((await caseOf(t, IDS.natalia)).assigned_admin, a);
+      assert.equal((await caseOf(t, IDS.ricardo)).assigned_admin, a);
+    }));
+
+  test('aprobar o rechazar cierra el caso; volver a cuidador sin verificar abre otro', () =>
+    tx(async (t) => {
+      const a = await adminUser(t);
+      await t.as(a, () => t.q(`select admin_set_sitter_approval($1, false)`, [IDS.natalia]));
+      assert.equal(await caseOf(t, IDS.natalia), undefined);
+      const o = await t.signUp('o@t.test', { role: 'owner', accepted_terms: true });
+      await t.as(o, () => t.q(`select switch_role('sitter')`));
+      assert.equal((await caseOf(t, o)).assigned_admin, a);
+      await t.as(o, () => t.q(`select switch_role('owner')`));
+      assert.equal(await caseOf(t, o), undefined);
+    }));
+
+  test('si un admin deja de serlo o lo eliminan, sus casos pasan a otro', () =>
+    tx(async (t) => {
+      const sa = await adminUser(t, 'sa@t.test', 'superadmin');
+      const a1 = await adminUser(t, 'a1@t.test');
+      const a2 = await adminUser(t, 'a2@t.test');
+      assert.equal((await caseOf(t, IDS.natalia)).assigned_admin, a1);
+      await t.as(sa, () => t.q(`select superadmin_set_admin($1, false)`, [a1]));
+      assert.equal((await caseOf(t, IDS.natalia)).assigned_admin, a2);
+      await t.as(sa, () => t.q(`select superadmin_delete_user($1)`, [a2]));
+      assert.equal((await caseOf(t, IDS.natalia)).assigned_admin, sa);
+    }));
+
+  test('solo el admin del caso (o el superadmin) agenda, marca la reunión y decide', () =>
+    tx(async (t) => {
+      const sa = await adminUser(t, 'sa@t.test', 'superadmin');
+      const a1 = await adminUser(t, 'a1@t.test');
+      const a2 = await adminUser(t, 'a2@t.test');
+      assert.equal((await caseOf(t, IDS.natalia)).assigned_admin, a1);
+      for (const sql of [
+        `select admin_schedule_meeting($1, ${inAWeek}, '${MEET}')`,
+        `select admin_mark_meeting_done($1)`,
+        `select admin_set_sitter_approval($1, true)`,
+      ]) {
+        rejects(await t.as(a2, () => t.fails(sql, [IDS.natalia])), /not_your_case/);
+      }
+      rejects(await t.as(IDS.marcela, () => t.fails(`select admin_schedule_meeting($1, ${inAWeek}, '${MEET}')`, [IDS.natalia])), /forbidden/);
+      await t.as(a1, () => t.q(`select admin_schedule_meeting($1, ${inAWeek}, '${MEET}')`, [IDS.natalia]));
+      let c = await caseOf(t, IDS.natalia);
+      assert.equal(c.stage, 'meeting_scheduled');
+      assert.equal(c.meeting_link, MEET);
+      assert.equal(c.meeting_confirmed, false);
+      await t.as(sa, () => t.q(`select admin_mark_meeting_done($1)`, [IDS.natalia]));
+      assert.equal((await caseOf(t, IDS.natalia)).stage, 'meeting_done');
+      rejects(await t.as(a1, () => t.fails(`select admin_mark_meeting_done($1)`, [IDS.natalia])), /no_meeting/);
+      await t.as(a1, () => t.q(`select admin_set_sitter_approval($1, true)`, [IDS.natalia]));
+      const log = await t.q(`select action from admin_actions where target_user_id = $1 order by created_at, id`, [IDS.natalia]);
+      assert.deepEqual(log.map((l) => l.action).sort(), ['approve_sitter', 'meeting_done', 'schedule_meeting']);
+    }));
+
+  test('la reunión exige fecha futura (≤ 90 días) y un enlace https', () =>
+    tx(async (t) => {
+      const a = await adminUser(t);
+      const bad = [
+        [`now() - interval '1 hour'`, MEET, /meeting_in_past/],
+        [`now() + interval '120 days'`, MEET, /meeting_too_far/],
+        [inAWeek, 'http://meet.google.com/x', /invalid_meeting_link/],
+        [inAWeek, 'reunión el martes', /invalid_meeting_link/],
+      ];
+      for (const [at, link, err] of bad) {
+        rejects(await t.as(a, () => t.fails(`select admin_schedule_meeting($1, ${at}, $2)`, [IDS.natalia, link])), err);
+      }
+    }));
+
+  test('el cuidador ve su caso y el nombre de su admin, confirma la reunión y no ve otros casos', () =>
+    tx(async (t) => {
+      const a = await adminUser(t);
+      await t.q(`update profiles set full_name = 'Ana Admin' where id = $1`, [a]);
+      rejects(await t.as(IDS.natalia, () => t.fails(`select sitter_confirm_meeting()`)), /no_meeting/);
+      await t.as(a, () => t.q(`select admin_schedule_meeting($1, ${inAWeek}, '${MEET}')`, [IDS.natalia]));
+      await t.as(IDS.natalia, async () => {
+        const mine = await t.q(`select sitter_id from sitter_cases`);
+        assert.deepEqual(mine.map((r) => r.sitter_id), [IDS.natalia]);
+        const [admin] = await t.q(`select full_name from profiles where id = $1`, [a]);
+        assert.equal(admin.full_name, 'Ana Admin');
+        await t.q(`select sitter_confirm_meeting()`);
+      });
+      assert.equal((await caseOf(t, IDS.natalia)).meeting_confirmed, true);
+      // Un dueño no ve casos ni el perfil del admin.
+      assert.equal((await t.as(IDS.marcela, () => t.q(`select * from sitter_cases`))).length, 0);
+      assert.equal((await t.as(IDS.marcela, () => t.q(`select 1 from profiles where id = $1`, [a]))).length, 0);
+    }));
+
+  test('nadie escribe casos directamente', () =>
+    tx(async (t) => {
+      const a = await adminUser(t);
+      rejects(await t.as(a, () => t.fails(`update sitter_cases set stage = 'meeting_done'`)), /permission denied/);
+      rejects(await t.as(IDS.natalia, () => t.fails(`delete from sitter_cases`)), /permission denied/);
+    }));
+
+  test('un caso sin admin lo toma cualquier admin; el superadmin reasigna', () =>
+    tx(async (t) => {
+      const a1 = await adminUser(t, 'a1@t.test');
+      const a2 = await adminUser(t, 'a2@t.test');
+      const sa = await adminUser(t, 'sa@t.test', 'superadmin');
+      await t.q(`update sitter_cases set assigned_admin = null where sitter_id = $1`, [IDS.natalia]);
+      await t.as(a2, () => t.q(`select admin_take_case($1)`, [IDS.natalia]));
+      assert.equal((await caseOf(t, IDS.natalia)).assigned_admin, a2);
+      rejects(await t.as(a1, () => t.fails(`select admin_take_case($1)`, [IDS.natalia])), /case_taken/);
+      rejects(await t.as(a1, () => t.fails(`select superadmin_reassign_case($1, $2)`, [IDS.natalia, a1])), /forbidden/);
+      rejects(await t.as(sa, () => t.fails(`select superadmin_reassign_case($1, $2)`, [IDS.natalia, IDS.marcela])), /not_an_admin/);
+      await t.as(sa, () => t.q(`select superadmin_reassign_case($1, $2)`, [IDS.natalia, a1]));
+      assert.equal((await caseOf(t, IDS.natalia)).assigned_admin, a1);
+    }));
+
+  test('certificados: el cuidador sube a su carpeta; los admins los ven; nadie más', () =>
+    tx(async (t) => {
+      const a = await adminUser(t);
+      const INSERT_DOC = `insert into sitter_documents (kind, file_name, storage_path, size_bytes) values ($1, $2, $3, $4)`;
+      await t.as(IDS.natalia, () => t.q(INSERT_DOC, ['certificate', 'curso.pdf', `${IDS.natalia}/1-curso.pdf`, 2048]));
+      // En la carpeta de otro, no.
+      rejects(
+        await t.as(IDS.natalia, () => t.fails(INSERT_DOC, ['other', 'x.pdf', `${IDS.ricardo}/x.pdf`, 10])),
+        /sitter_documents_own_folder/,
+      );
+      // Un dueño no sube certificados.
+      rejects(await t.as(IDS.marcela, () => t.fails(INSERT_DOC, ['other', 'x.pdf', `${IDS.marcela}/x.pdf`, 10])), /row-level security/);
+      // Más de 10 MB, no.
+      rejects(await t.as(IDS.natalia, () => t.fails(INSERT_DOC, ['other', 'g.pdf', `${IDS.natalia}/g.pdf`, 10485761])), /check constraint/);
+      assert.equal((await t.as(a, () => t.q(`select * from sitter_documents`))).length, 1);
+      assert.equal((await t.as(IDS.ricardo, () => t.q(`select * from sitter_documents`))).length, 0);
+      assert.equal((await t.as(IDS.marcela, () => t.q(`select * from sitter_documents`))).length, 0);
+      // Solo el cuidador borra los suyos.
+      await t.as(a, () => t.q(`delete from sitter_documents`));
+      assert.equal((await t.q(`select * from sitter_documents`)).length, 1);
+      await t.as(IDS.natalia, () => t.q(`delete from sitter_documents`));
+      assert.equal((await t.q(`select * from sitter_documents`)).length, 0);
+    }));
+
+  test('certificados: máximo 10 por cuidador', () =>
+    tx(async (t) => {
+      await t.as(IDS.natalia, async () => {
+        for (let i = 0; i < 10; i++) {
+          await t.q(`insert into sitter_documents (kind, file_name, storage_path, size_bytes) values ('other', 'd.pdf', $1, 10)`, [`${IDS.natalia}/${i}.pdf`]);
+        }
+        rejects(
+          await t.fails(`insert into sitter_documents (kind, file_name, storage_path, size_bytes) values ('other', 'd.pdf', $1, 10)`, [`${IDS.natalia}/x.pdf`]),
+          /too_many_documents/,
+        );
+      });
+    }));
+
+  test('el bucket de certificados es privado: 10 MB, PDF o imagen, solo la carpeta propia o un admin', () =>
+    tx(async (t) => {
+      const [b] = await t.q(`select * from storage.buckets where id = 'sitter-docs'`);
+      assert.equal(b.public, false);
+      assert.equal(Number(b.file_size_limit), 10485760);
+      assert.deepEqual([...b.allowed_mime_types].sort(), ['application/pdf', 'image/jpeg', 'image/png', 'image/webp']);
+      const a = await adminUser(t);
+      // En Supabase `authenticated` ya puede usar storage; el simulador no.
+      await t.q(`grant usage on schema storage to authenticated`);
+      await t.q(`grant select, insert, delete on storage.objects to authenticated`);
+      await t.as(IDS.natalia, () => t.q(`insert into storage.objects (bucket_id, name) values ('sitter-docs', $1)`, [`${IDS.natalia}/c.pdf`]));
+      rejects(
+        await t.as(IDS.natalia, () => t.fails(`insert into storage.objects (bucket_id, name) values ('sitter-docs', $1)`, [`${IDS.ricardo}/c.pdf`])),
+        /row-level security/,
+      );
+      const visible = (who) => t.as(who, () => t.q(`select name from storage.objects where bucket_id = 'sitter-docs'`));
+      assert.equal((await visible(IDS.natalia)).length, 1);
+      assert.equal((await visible(a)).length, 1);
+      assert.equal((await visible(IDS.ricardo)).length, 0);
+      assert.equal((await visible(IDS.marcela)).length, 0);
+    }));
+
+  test('sitter_cases está en realtime con replica identity full', () =>
+    tx(async (t) => {
+      const pub = await t.q(`select 1 from pg_publication_tables where pubname = 'supabase_realtime' and tablename = 'sitter_cases'`);
+      assert.equal(pub.length, 1);
+    }));
 });

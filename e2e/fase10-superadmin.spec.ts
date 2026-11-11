@@ -1,5 +1,5 @@
 import { test, expect, Page } from '@playwright/test';
-import { btn, enterAsOwner, pin, scrollUntil, seen, switchDemo, tab, typeInto } from './helpers';
+import { approveSitter, btn, enterAsOwner, pin, scrollUntil, seen, switchDemo, tab, typeInto } from './helpers';
 
 test.describe.configure({ timeout: 90_000 });
 
@@ -80,8 +80,7 @@ test.describe('eliminar cuentas', () => {
   test('un admin no puede eliminar cuentas y solo ve su propio historial', async ({ page }) => {
     await enterAsOwner(page);
     await switchDemo(page, 'Administrador');
-    await btn(page, 'Aprobar a Natalia Peña').click();
-    await expect(seen(page, 'Natalia Peña fue aprobado')).toBeVisible();
+    await approveSitter(page, 'Natalia Peña');
 
     await tab(page, 'Usuarios').click();
     await typeInto(page, 'Buscar por nombre o correo', 'Julián');

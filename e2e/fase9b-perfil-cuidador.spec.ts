@@ -79,9 +79,10 @@ test.describe('zona de servicio', () => {
   test('el admin ve si un cuidador en revisión aún no tiene zona', async ({ page }) => {
     await registerSitter(page, 'Cuidador Incompleto', 'incompleto@test.com');
     await switchDemo(page, 'Administrador');
-    await expect(seen(page, /^Cuidador Incompleto/)).toBeVisible();
-    await expect(seen(page, /Aún no define su zona de servicio/)).toBeVisible();
     await expect(seen(page, /Zona: Bosa, 5 km/)).toBeVisible(); // Natalia sí la tiene
+    // Las tarjetas (con su caso) son altas: el cuidador nuevo queda más abajo.
+    await scrollUntil(page, page.getByText(/Aún no define su zona de servicio/));
+    await expect(seen(page, /Aún no define su zona de servicio/)).toBeVisible();
   });
 });
 

@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { btn, enterAsOwner, goToLogin, pins, scrollUntil, seen, switchDemo, tab, typeInto } from './helpers';
+import { approveSitter, btn, enterAsOwner, goToLogin, pins, scrollUntil, seen, switchDemo, tab, typeInto } from './helpers';
 
 const groups = (page: import('@playwright/test').Page) =>
   page.getByRole('button', { name: /^\d+ cuidadores en esta zona, desde \$[\d.]+\. Acercar$/ });
@@ -44,8 +44,7 @@ test.describe('aviso del cuidador fuera del mapa', () => {
     await expect(seen(page, 'Tu perfil está en revisión')).toBeVisible();
 
     await switchDemo(page, 'Administrador');
-    await btn(page, 'Aprobar a Santi Sin Servicios').click();
-    await expect(seen(page, 'Santi Sin Servicios fue aprobado')).toBeVisible();
+    await approveSitter(page, 'Santi Sin Servicios');
 
     // Vuelve a entrar con su cuenta: ya aprobado, pero nadie lo encuentra.
     await tab(page, 'Perfil').click();
