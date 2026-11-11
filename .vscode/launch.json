@@ -9,11 +9,14 @@
       "args": ["--dart-define-from-file=env.json"]
     },
     {
-      "name": "Doggo (iOS Simulator)",
+      "name": "Doggo (celular en Chrome)",
       "request": "launch",
       "type": "dart",
-      "deviceId": "iPhone",
-      "args": ["--dart-define-from-file=env.json"]
+      "deviceId": "chrome",
+      "args": [
+        "--dart-define-from-file=env.json",
+        "--web-browser-flag=--window-size=410,900"
+      ]
     },
     {
       "name": "Doggo (emulador Android)",
