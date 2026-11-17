@@ -7,7 +7,7 @@
     "test": "test"
   },
   "scripts": {
-    "build:web": "flutter build web --release",
+    "build:web": "flutter build web --release --dart-define=DEMO_SAMPLE_BOOKINGS=false",
     "test:e2e": "playwright test",
     "test:full": "npm run build:web && playwright test",
     "test:db": "node --test supabase/tests/schema.test.mjs",
