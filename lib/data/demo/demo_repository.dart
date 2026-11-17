@@ -27,7 +27,10 @@ const demoPassword = 'doggo123';
 /// Implementación en memoria: sin backend ni persistencia entre recargas.
 class DemoRepository implements Repository {
   /// [clock] permite fijar la hora en las pruebas (por defecto, la real).
-  DemoRepository({DateTime Function()? clock}) : _now = clock ?? DateTime.now {
+  /// [sampleBookings] precarga solicitudes de ejemplo para Carlos Cuidador
+  /// (la app publicada sí; las pruebas empiezan sin reservas).
+  DemoRepository({DateTime Function()? clock, bool sampleBookings = false})
+    : _now = clock ?? DateTime.now {
     for (final p in _seedProfiles) {
       _users[p.email] = _DemoUser(p, demoPassword);
     }
@@ -54,8 +57,175 @@ class DemoRepository implements Repository {
     }
     // Los cuidadores en revisión de ejemplo ya tienen su caso repartido.
     _syncCases();
+    if (sampleBookings) _seedSampleBookings();
     // Las solicitudes sin respuesta vencen solas al pasar su plazo.
     Timer.periodic(const Duration(seconds: 15), (_) => _expireOverdue());
+  }
+
+  /// Dueños de ejemplo (sin contraseña) con solicitudes para Carlos Cuidador,
+  /// para que el panel del cuidador no arranque vacío. Las horas se calculan
+  /// desde ahora: las pendientes tienen casi 2 h para responderse.
+  void _seedSampleBookings() {
+    final now = _now();
+    final today = DateTime(now.year, now.month, now.day);
+    DateTime day(int d, int h, [int m = 0]) =>
+        today.add(Duration(days: d, hours: h, minutes: m));
+
+    const owners = [
+      (
+        'demo-owner-valentina',
+        'valentina@doggo.app',
+        'Valentina Ruiz',
+        '311 456 7890',
+        'Calle 63 #9-45, Chapinero',
+      ),
+      (
+        'demo-owner-julian',
+        'julian@doggo.app',
+        'Julián Pérez',
+        '320 555 1122',
+        'Carrera 11 #93-20, Chicó',
+      ),
+      (
+        'demo-owner-camila',
+        'camila@doggo.app',
+        'Camila Torres',
+        '315 222 3344',
+        'Calle 70 #5-12, Rosales',
+      ),
+    ];
+    for (final (id, email, name, phone, address) in owners) {
+      _users[email] = _DemoUser(
+        Profile(
+          id: id,
+          email: email,
+          fullName: name,
+          role: UserRole.owner,
+          status: UserStatus.approved,
+          termsAcceptedAt: DateTime(2026, 1, 1),
+        ),
+        null,
+      );
+      _private[id] = PrivateData(phone: phone, address: address);
+    }
+    _dogs.addAll(const [
+      Dog(
+        id: 'demo-dog-toby',
+        ownerId: 'demo-owner-valentina',
+        name: 'Toby',
+        breed: 'Golden Retriever',
+        size: DogSize.large,
+        notes: 'Tira un poco de la correa. Le encanta el parque.',
+      ),
+      Dog(
+        id: 'demo-dog-kira',
+        ownerId: 'demo-owner-julian',
+        name: 'Kira',
+        breed: 'Border Collie',
+        size: DogSize.medium,
+        notes: 'Mucha energía: necesita jugar con pelota.',
+      ),
+      Dog(
+        id: 'demo-dog-max',
+        ownerId: 'demo-owner-camila',
+        name: 'Max',
+        breed: 'Pug',
+        size: DogSize.small,
+        notes: 'Toma medicina para la alergia con la comida de la noche.',
+      ),
+    ]);
+
+    final sitter = _demoSitters.first;
+    Booking b(
+      String ownerId,
+      String ownerName,
+      String dogId,
+      String dogName,
+      ServiceType service,
+      DateTime start,
+      DateTime end,
+      BookingStatus status,
+      DateTime createdAt, {
+      bool reviewed = false,
+    }) => Booking(
+      id: 'demo-booking-${_nextId++}',
+      ownerId: ownerId,
+      ownerName: ownerName,
+      sitterId: sitter.id,
+      sitterName: sitter.name,
+      dogId: dogId,
+      dogName: dogName,
+      service: service,
+      startAt: start,
+      endAt: end,
+      totalCop: bookingTotal(service, sitter.services[service]!, start, end),
+      status: status,
+      createdAt: createdAt,
+      responseDeadline: responseDeadline(createdAt, start),
+      reviewed: reviewed,
+    );
+
+    _bookings.addAll([
+      // Pendientes: esperan que Carlos acepte o rechace.
+      b(
+        'demo-owner-valentina',
+        'Valentina Ruiz',
+        'demo-dog-toby',
+        'Toby',
+        ServiceType.walk,
+        day(1, 9),
+        day(1, 10),
+        BookingStatus.pending,
+        now.subtract(const Duration(minutes: 8)),
+      ),
+      b(
+        'demo-owner-julian',
+        'Julián Pérez',
+        'demo-dog-kira',
+        'Kira',
+        ServiceType.daycare,
+        day(2, 8),
+        day(2, 17),
+        BookingStatus.pending,
+        now.subtract(const Duration(minutes: 25)),
+      ),
+      b(
+        'demo-owner-camila',
+        'Camila Torres',
+        'demo-dog-max',
+        'Max',
+        ServiceType.homeVisit,
+        day(1, 18),
+        day(1, 19),
+        BookingStatus.pending,
+        now.subtract(const Duration(minutes: 3)),
+      ),
+      // Ya aceptada: aparece en la agenda.
+      b(
+        'demo-owner-julian',
+        'Julián Pérez',
+        'demo-dog-kira',
+        'Kira',
+        ServiceType.walk,
+        day(3, 16),
+        day(3, 17),
+        BookingStatus.accepted,
+        now.subtract(const Duration(days: 1)),
+      ),
+      // Historial.
+      b(
+        'demo-owner-camila',
+        'Camila Torres',
+        'demo-dog-max',
+        'Max',
+        ServiceType.walk,
+        day(-5, 10),
+        day(-5, 11),
+        BookingStatus.completed,
+        now.subtract(const Duration(days: 6)),
+        reviewed: true,
+      ),
+    ]);
   }
 
   static final _seedProfiles = [

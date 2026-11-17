@@ -6,3 +6,10 @@ const supabaseAnonKey = String.fromEnvironment('SUPABASE_ANON_KEY');
 
 /// ¿Hay un backend real configurado?
 const supabaseConfigured = supabaseUrl != '' && supabaseAnonKey != '';
+
+/// Solicitudes de ejemplo en el panel del cuidador del modo demo. Las pruebas
+/// e2e compilan con `--dart-define=DEMO_SAMPLE_BOOKINGS=false`.
+const demoSampleBookings = bool.fromEnvironment(
+  'DEMO_SAMPLE_BOOKINGS',
+  defaultValue: true,
+);

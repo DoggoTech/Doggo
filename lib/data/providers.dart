@@ -28,7 +28,7 @@ final appModeProvider = NotifierProvider<AppModeNotifier, AppMode>(
 /// Una sola demo por sesión del navegador: lo que se hace en ella dura hasta
 /// recargar la página, aunque se salga y se vuelva a entrar.
 final demoRepositoryProvider = Provider<DemoRepository>(
-  (ref) => DemoRepository(),
+  (ref) => DemoRepository(sampleBookings: demoSampleBookings),
 );
 
 final supabaseRepositoryProvider = Provider<SupabaseRepository>(
